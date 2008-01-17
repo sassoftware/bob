@@ -11,6 +11,7 @@ from conary.lib.cfgtypes import *
 class BobTargetSection(cfg.ConfigSection):
     flavor_set              = CfgString
     flavor                  = CfgList(CfgFlavor)
+    version                 = CfgString
 
 class BobTestSection(cfg.ConfigSection):
     strip                   = CfgInt
@@ -19,11 +20,13 @@ class BobConfig(cfg.SectionedConfigFile):
     # source
     sourceLabel             = CfgString
     macro                   = CfgDict(CfgString)
-    mercurial               = CfgDict(CfgString)
+    hg                      = CfgDict(CfgString)
 
     # build
     shortenGroupFlavors     = (CfgBool, True)
     tag                     = CfgString
+    target                  = CfgString
+    version                 = CfgDict(CfgString)
 
     # custom handling of sections
     _sectionMap = {'target': BobTargetSection, 'test': BobTestSection}
