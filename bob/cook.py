@@ -6,7 +6,9 @@
 
 import os.path
 
-from conary import conarycfg, conaryclient
+from conary import conarycfg
+from conary import conaryclient
+from conary.deps import deps
 from rmake.build import buildcfg
 from rmake.build import buildjob
 from rmake.cmdline import buildcmd
@@ -51,12 +53,7 @@ class CookBob(object):
             else:
                 assert False
 
-    def run(self):
-        # Get versions of all hg repositories
-        for name, repos in self.cfg.hg.iteritems():
-            node = hg_loader.getNode(repos)
-            self.hg[name] = node
-
+    def getJob(self):
         # Determine the top-level trove specs to build
         troveSpecs = []
         for targetName, targetCfg in self.targets:
@@ -82,5 +79,21 @@ class CookBob(object):
             recurseGroups=buildcmd.BUILD_RECURSE_GROUPS_SOURCE,
             matchSpecs=cfg.matchTroveRule)
 
+        # Add troves to job
+        for name, version, flavor in troveList:
+            if flavor is None:
+                flavor = deps.parseFlavor('')
+            job.addTrove(name, version, flavor, '', bt)
+
+        return job
+
     def getLabelFromTag(self, stage='test'):
         return self.cfg.labelPrefix + self.cfg.tag + '-' + stage
+
+    def run(self):
+        # Get versions of all hg repositories
+        for name, repos in self.cfg.hg.iteritems():
+            node = hg_loader.getNode(repos)
+            self.hg[name] = node
+
+        job = self.getJob()
