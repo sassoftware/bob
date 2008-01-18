@@ -54,6 +54,9 @@ class CookBob(object):
                 assert False
 
     def getJob(self):
+        '''
+        Create a rMake build job given the configured target parameters.
+        '''
         # Determine the top-level trove specs to build
         troveSpecs = []
         for targetName, targetCfg in self.targets:
@@ -75,9 +78,7 @@ class CookBob(object):
         job.setMainConfig(cfg)
 
         # Determine which troves to build
-        troveList = buildcmd.getTrovesToBuild(cfg, self.cc, troveSpecs,
-            recurseGroups=buildcmd.BUILD_RECURSE_GROUPS_SOURCE,
-            matchSpecs=cfg.matchTroveRule)
+        troveList = getMangledTroves(cfg, troveSpecs)
 
         # Add troves to job
         for name, version, flavor in troveList:
@@ -86,6 +87,76 @@ class CookBob(object):
             job.addTrove(name, version, flavor, '', bt)
 
         return job
+
+    def getMangledTroves(self, cfg, troveSpecs):
+        toBuild = []
+        toFind = {}
+        groupsToFind = []
+        if not matchSpecs:
+            matchSpecs = []
+
+        cfg.resolveTroveTups = buildcmd._getResolveTroveTups(cfg, self.nc)
+        cfg.recurseGroups = buildcmd.BUILD_RECURSE_GROUPS_SOURCE
+
+        cfg.buildTroveSpecs = []
+        newTroveSpecs = []
+        recipesToCook = []
+        for troveSpec in list(troveSpecList):
+            if troveSpec[2] is None:
+                troveSpec = (troveSpec[0], troveSpec[1], deps.parseFlavor(''))
+
+            # Don't even bother following recipes that are off-label. We
+            # don't need to mangle them, and we don't need to build them.
+            if not buildcmd._filterListByMatchSpecs(cfg.reposName,
+              cfg.matchTroveRule, [troveSpec]):
+                continue
+
+            newTrove = self.mangleTrove(cfg, troveSpec)
+            cfg.buildTroveSpecs.append(newTrove)
+            newTroveSpecs.append(newTrove)
+
+            recipesToCook.append((os.path.realpath(troveSpec[0]), troveSpec[2]))
+                continue
+            cfg.buildTroveSpecs.append(troveSpec)
+
+            if troveSpec[0].startswith('group-'):
+                groupsToFind.append(troveSpec)
+            newTroveSpecs.append(troveSpec)
+
+        # TODO: make the magic happen
+        localTroves = [(_getLocalCook(conaryclient, cfg, x[0], message), x[1])
+                         for x in recipesToCook ]
+        localTroves = [(x[0][0], x[0][1], x[1]) for x in localTroves]
+        compat.ConaryVersion().requireFindGroupSources()
+        localGroupTroves = [ x for x in localTroves 
+                             if x[0].startswith('group-') ]
+        toBuild.extend(_findSourcesForSourceGroup(self.nc, cfg.reposName, cfg,
+                                                      groupsToFind,
+                                                      localGroupTroves,
+                                                      updateSpecs))
+
+        for troveSpec in newTroveSpecs:
+            sourceName = troveSpec[0].split(':')[0] + ':source'
+
+            s = toFind.setdefault((sourceName, troveSpec[1], None), [])
+            if troveSpec[2] not in s:
+                s.append(troveSpec[2])
+
+
+        results = self.nc.findTroves(cfg.buildLabel, toFind, None)
+
+        for troveSpec, troveTups in results.iteritems():
+            flavorList = toFind[troveSpec]
+            for troveTup in troveTups:
+                for flavor in flavorList:
+                    toBuild.append((troveTup[0], troveTup[1], flavor))
+
+        toBuild.extend(localTroves)
+
+        toBuild = _filterListByMatchSpecs(cfg.reposName, cfg.matchTroveRule,
+            toBuild)
+        return toBuild
+   
 
     def getLabelFromTag(self, stage='test'):
         return self.cfg.labelPrefix + self.cfg.tag + '-' + stage
