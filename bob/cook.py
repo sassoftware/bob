@@ -7,9 +7,14 @@
 import os.path
 
 from conary import conarycfg, conaryclient
+from rmake.build import buildcfg
+from rmake.build import buildjob
+from rmake.cmdline import buildcmd
 
 from bob import config
-from bob import mercurial
+from bob import flavors
+from bob.loader import conary_loader
+from bob.loader import hg_loader
 
 class CookBob(object):
     def __init__(self):
@@ -18,14 +23,18 @@ class CookBob(object):
         self.targets = {}
         self.tests = {}
         
-        # repositories
-        self.conary = {}
+        # repo / build info
+        self.job = None
         self.hg = {}
 
         # conary client
         self.conarycfg = conarycfg.ConaryConfiguration(True)
         self.cc = conaryclient.ConaryClient()
         self.nc = self.cc.getRepos()
+
+        # rmake client
+        self.buildcfg = buildcfg.BuildConfiguration(True)
+        self.rc = client.rMakeClient(self.buildcfg.rmakeUrl)
 
     def readPlan(self, plan):
         if plan.startsWith('http://') or plan.startswith('https://'):
@@ -42,15 +51,36 @@ class CookBob(object):
             else:
                 assert False
 
-    def loadConary(self):
-        '''Pick versions of troves to shadow and build against'''
-
-    def loadMercurial(self):
-        '''Pick versions of mercurial repositories to build against'''
+    def run(self):
+        # Get versions of all hg repositories
         for name, repos in self.cfg.hg.iteritems():
-            node = mercurial.getNode(repos)
+            node = hg_loader.getNode(repos)
             self.hg[name] = node
 
-    def run(self):
-        self.loadConary()
-        self.loadMercurial()
+        # Determine the top-level trove specs to build
+        troveSpecs = []
+        for targetName, targetCfg in self.targets:
+            for flavor in flavors.expandByTarget(targetCfg):
+                troveSpecs += (targetName, self.cfg.sourceLabel, flavor, '')
+
+        # Pre-build configuration
+        self.rc.addRepository(buildConfig)
+        self.buildcfg.limitToLabels(self.cfg.sourceLabel)
+
+        cfg = copy.deepcopy(self.buildcfg) # XXX necessary?
+        cfg.dropContexts()
+        cfg.initializeFlavors()
+        cfg.buildLabel = self.getLabelFromTag('test')
+        use.setBuildFlagsFromFlavor(None, cfg.buildFlavor, error=False)
+
+        # Create rMake job
+        job = buildjob.BuildJob()
+        job.setMainConfig(cfg)
+
+        # Determine which troves to build
+        troveList = buildcmd.getTrovesToBuild(cfg, self.cc, troveSpecs,
+            recurseGroups=buildcmd.BUILD_RECURSE_GROUPS_SOURCE,
+            matchSpecs=cfg.matchTroveRule)
+
+    def getLabelFromTag(self, stage='test'):
+        return self.cfg.labelPrefix + self.cfg.tag + '-' + stage

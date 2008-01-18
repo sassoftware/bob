@@ -17,6 +17,8 @@ class BobTestSection(cfg.ConfigSection):
     strip                   = CfgInt
 
 class BobConfig(cfg.SectionedConfigFile):
+    labelPrefix             = (CfgString, 'bob3.rb.rpath.com@rpath:')
+
     # source
     sourceLabel             = CfgString
     macro                   = CfgDict(CfgString)
@@ -25,7 +27,7 @@ class BobConfig(cfg.SectionedConfigFile):
     # build
     shortenGroupFlavors     = (CfgBool, True)
     tag                     = CfgString
-    target                  = CfgString
+    target                  = CfgList(CfgString)
     version                 = CfgDict(CfgString)
 
     # custom handling of sections
