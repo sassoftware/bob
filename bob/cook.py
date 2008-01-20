@@ -4,14 +4,17 @@
 # All rights reserved.
 #
 
-import os.path
+import os
+import shutil
 
 from conary import conarycfg
 from conary import conaryclient
+from conary.build import grouprecipe
 from conary.deps import deps
 from rmake.build import buildcfg
 from rmake.build import buildjob
 from rmake.cmdline import buildcmd
+from rmake.lib import recipeutil
 
 from bob import config
 from bob import flavors
@@ -70,8 +73,7 @@ class CookBob(object):
         cfg = copy.deepcopy(self.buildcfg) # XXX necessary?
         cfg.dropContexts()
         cfg.initializeFlavors()
-        cfg.buildLabel = self.getLabelFromTag('test')
-        use.setBuildFlagsFromFlavor(None, cfg.buildFlavor, error=False)
+        cfg.buildLabel = self.cfg.sourceLabel
 
         # Create rMake job
         job = buildjob.BuildJob()
@@ -88,75 +90,114 @@ class CookBob(object):
 
         return job
 
+    def groupTroveSpecs(self, troveList):
+        troveSpecs = {}
+        for n, v, f in troveList:
+            if f is None:
+                f = deps.parseFlavor('')
+            troveSpecs.setdefault((n, v), []).append(f)
+        return [(name, version, flavors)
+            for (name, version), flavors in troveSpecs.iteritems()]
+
     def getMangledTroves(self, cfg, troveSpecs):
         toBuild = []
-        toFind = {}
-        groupsToFind = []
-        if not matchSpecs:
-            matchSpecs = []
 
-        cfg.resolveTroveTups = buildcmd._getResolveTroveTups(cfg, self.nc)
-        cfg.recurseGroups = buildcmd.BUILD_RECURSE_GROUPS_SOURCE
+        rewrittenTroves = {}
+        resolvedGroups = {}
 
         cfg.buildTroveSpecs = []
-        newTroveSpecs = []
-        recipesToCook = []
-        for troveSpec in list(troveSpecList):
-            if troveSpec[2] is None:
-                troveSpec = (troveSpec[0], troveSpec[1], deps.parseFlavor(''))
+        cfg.recurseGroups = buildcmd.BUILD_RECURSE_GROUPS_SOURCE
+        cfg.resolveTroveTups = buildcmd._getResolveTroveTups(cfg, self.nc)
+        localRepos = recipeutil.RemoveHostRepos(self.nc, cfg.reposName)
+        use.setBuildFlagsFromFlavor(None, cfg.buildFlavor, error=False)
 
+        for name, version, flavors in self.groupTroveSpecs(troveSpecs):
             # Don't even bother following recipes that are off-label. We
             # don't need to mangle them, and we don't need to build them.
             if not buildcmd._filterListByMatchSpecs(cfg.reposName,
-              cfg.matchTroveRule, [troveSpec]):
+              cfg.matchTroveRule, [(name, version, None]):
                 continue
 
-            newTrove = self.mangleTrove(cfg, troveSpec)
-            cfg.buildTroveSpecs.append(newTrove)
-            newTroveSpecs.append(newTrove)
+            # Mangle the trove before doing group lookup
+            if rewrittenTroves.has_key((name, version)):
+                newTrove = rewrittenTroves[(name, version)]
+            else:
+                newTrove = self.mangleTrove(cfg, name, version)
+                rewrittenTroves[(name, version)] = newTrove
+                toBuild.append(newTrove)
+                cfg.buildTroveSpecs.append(newTrove)
 
-            recipesToCook.append((os.path.realpath(troveSpec[0]), troveSpec[2]))
-                continue
-            cfg.buildTroveSpecs.append(troveSpec)
+            # Find all troves included if this is a group.
+            if name.startswith('group-'):
+                sourceName = name.split(':')[0] + ':source'
 
-            if troveSpec[0].startswith('group-'):
-                groupsToFind.append(troveSpec)
-            newTroveSpecs.append(troveSpec)
+                for flavor in flavors:
+                    # Don't bother resolving the same NVF twice
+                    if resolvedGroups.has_key((sourceName, version, flavor)):
+                        continue
 
-        # TODO: make the magic happen
-        localTroves = [(_getLocalCook(conaryclient, cfg, x[0], message), x[1])
-                         for x in recipesToCook ]
-        localTroves = [(x[0][0], x[0][1], x[1]) for x in localTroves]
-        compat.ConaryVersion().requireFindGroupSources()
-        localGroupTroves = [ x for x in localTroves 
-                             if x[0].startswith('group-') ]
-        toBuild.extend(_findSourcesForSourceGroup(self.nc, cfg.reposName, cfg,
-                                                      groupsToFind,
-                                                      localGroupTroves,
-                                                      updateSpecs))
-
-        for troveSpec in newTroveSpecs:
-            sourceName = troveSpec[0].split(':')[0] + ':source'
-
-            s = toFind.setdefault((sourceName, troveSpec[1], None), [])
-            if troveSpec[2] not in s:
-                s.append(troveSpec[2])
-
-
-        results = self.nc.findTroves(cfg.buildLabel, toFind, None)
-
-        for troveSpec, troveTups in results.iteritems():
-            flavorList = toFind[troveSpec]
-            for troveTup in troveTups:
-                for flavor in flavorList:
-                    toBuild.append((troveTup[0], troveTup[1], flavor))
-
-        toBuild.extend(localTroves)
+                    loader, recipeObj, relevantFlavor = \
+                        recipeutil.loadRecipe(self.nc, sourceName, version,
+                            flavor, defaultFlavor=cfg.buildFlavor,
+                            installLabelPath=cfg.installLabelPath,
+                            buildLabel=self.getLabelFromTag('test'))
+                    troveTups = grouprecipe.findSourcesForGroup(
+                        localRepos, recipeObj)
+                    toBuild.extend(troveTups)
 
         toBuild = _filterListByMatchSpecs(cfg.reposName, cfg.matchTroveRule,
             toBuild)
         return toBuild
-   
+
+    def mangleTrove(self, cfg, name, version):
+        oldKey = cfg.signatureKey
+        oldMap = cfg.signatureKeyMap
+        oldInteractive = cfg.interactive
+
+        package = name.split(':')[0]
+        sourceName = package + ':source'
+        workDir = tempfile.mkdtemp(prefix='bob-mangle-%s' % package)
+        newTrove = None
+        try:
+            cfg.signatureKey = None
+            cfg.signatureKeyMap = {}
+            cfg.interactive = False
+
+            # Shadow to rMake's internal repos
+            logging.info('Shadowing %s to rMake repository', package)
+            targetLabel = cfg.getTargetLabel(version)
+            skipped, cs = conaryclient.createShadowChangeSet(
+                str(targetLabel), [(sourceName, version, None)])
+            if not skipped:
+                signAbsoluteChangeset(cs, None)
+                self.nc.commitChangeSet(cs)
+
+            # Check out the shadow
+            checkin.checkout(self.nc, self.conarycfg,
+                ['%s=%s' % (name, version)])
+
+            # Mangle 
+            recipe = open('%s.recipe' % package).read()
+            recipe = mangle.mangle(self, package, recipe)
+            open('%s.recipe' % package).write(recipe)
+
+            # Commit changes back to the internal repos
+            logging.resetErrorOccurred()
+            checkin.commit(self.nc, self.conarycfg,
+                'Automated commit by Bob the Builder', force=True)
+            if logging.errorOccurred():
+                raise RuntimeError()
+
+            # Figure out the new version and return
+            state = ConaryStateFromFile('CONARY', self.nc).getSourceState()
+            newTrove = state.getNameVersionFlavor()
+        finally:
+            cfg.signatureKey = oldKey
+            cfg.signatureKeyMap = oldMap
+            cfg.interactive = oldInteractive
+            shutil.rmtree(workDir)
+
+        return newTrove
 
     def getLabelFromTag(self, stage='test'):
         return self.cfg.labelPrefix + self.cfg.tag + '-' + stage
@@ -165,6 +206,6 @@ class CookBob(object):
         # Get versions of all hg repositories
         for name, repos in self.cfg.hg.iteritems():
             node = hg_loader.getNode(repos)
-            self.hg[name] = node
+            self.hg[name] = (repos, node)
 
         job = self.getJob()

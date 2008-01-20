@@ -9,6 +9,7 @@ from conary.lib import cfg
 from conary.lib.cfgtypes import *
 
 class BobTargetSection(cfg.ConfigSection):
+    hg                      = CfgString
     flavor_set              = CfgString
     flavor                  = CfgList(CfgFlavor)
     version                 = CfgString
