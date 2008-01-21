@@ -6,6 +6,7 @@
 
 import os
 import shutil
+import sys
 
 from conary import conarycfg
 from conary import conaryclient
@@ -18,8 +19,6 @@ from rmake.lib import recipeutil
 
 from bob import config
 from bob import flavors
-from bob.loader import conary_loader
-from bob.loader import hg_loader
 
 class CookBob(object):
     def __init__(self):
@@ -115,7 +114,7 @@ class CookBob(object):
             # Don't even bother following recipes that are off-label. We
             # don't need to mangle them, and we don't need to build them.
             if not buildcmd._filterListByMatchSpecs(cfg.reposName,
-              cfg.matchTroveRule, [(name, version, None]):
+              cfg.matchTroveRule, [(name, version, None)]):
                 continue
 
             # Mangle the trove before doing group lookup
@@ -205,7 +204,7 @@ class CookBob(object):
     def run(self):
         # Get versions of all hg repositories
         for name, repos in self.cfg.hg.iteritems():
-            node = hg_loader.getNode(repos)
+            node = 'tip'
             self.hg[name] = (repos, node)
 
         job = self.getJob()
@@ -214,3 +213,14 @@ class CookBob(object):
 
         self.helper = helper.rMakeHelper(buildConfig=self.buildcfg)
         helper.watch(jobId, showTroveLogs=True, commit=False)
+
+if __name__ == '__main__':
+    try:
+        plan = sys.argv[1]
+    except IndexError:
+        print >>sys.stderr, 'Usage: %s <plan file or URI>' % sys.argv[0]
+        sys.exit(1)
+
+    bob = CookBob()
+    bob.readPlan(plan)
+    bob.run()
