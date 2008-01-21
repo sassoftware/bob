@@ -209,3 +209,8 @@ class CookBob(object):
             self.hg[name] = (repos, node)
 
         job = self.getJob()
+        jobId = client.buildJob(job)
+        print 'Job %d started' % jobId
+
+        self.helper = helper.rMakeHelper(buildConfig=self.buildcfg)
+        helper.watch(jobId, showTroveLogs=True, commit=False)
