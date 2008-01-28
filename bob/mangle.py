@@ -32,7 +32,7 @@ def version(parent, trove, recipe):
 
     rawVersion = parent.targets[trove].version
     newVersion = macro.expand(rawVersion, parent, trove=trove)
-    return re_version.sub(r'\1version = "mangle_%s"' % newVersion, recipe)
+    return re_version.sub(r'\1version = %r' % (newVersion,), recipe)
 
 re_source = re.compile(
     r'''^(\s+)(\S+)\.addMercurialSnapshot\s*\(.*?\).*?$''', re.M | re.S)
@@ -54,4 +54,4 @@ def source(parent, trove, recipe):
 
     uri, node = parent.hg[repo]
     return re_source.sub(r'\1\2.addMercurialSnapshot(%r, tag=%r)'
-        % (str(uri), str(node)))
+        % (str(uri), str(node)), recipe)

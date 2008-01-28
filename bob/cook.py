@@ -7,21 +7,31 @@
 import os
 import shutil
 import sys
+import tempfile
 
-from conary import conarycfg
+from conary import checkin
 from conary import conaryclient
+from conary import state
+from conary import versions
+from conary.build import cook
 from conary.build import grouprecipe
+from conary.build import use
 from conary.deps import deps
+from conary.lib import log
+from rmake import plugins
 from rmake.build import buildcfg
 from rmake.build import buildjob
 from rmake.cmdline import buildcmd
+from rmake.cmdline import helper
 from rmake.lib import recipeutil
+from rmake.server import client
 
 from bob import config
+from bob import mangle
 from bob import flavors
 
 class CookBob(object):
-    def __init__(self):
+    def __init__(self, bcfg, pluginmgr):
         self.cfg = config.BobConfig()
         self.macros = {}
         self.targets = {}
@@ -31,27 +41,29 @@ class CookBob(object):
         self.job = None
         self.hg = {}
 
+        # conary/rmake config
+        self.buildcfg = bcfg
+
         # conary client
-        self.conarycfg = conarycfg.ConaryConfiguration(True)
-        self.cc = conaryclient.ConaryClient()
+        self.cc = conaryclient.ConaryClient(bcfg)
         self.nc = self.cc.getRepos()
 
         # rmake client
-        self.buildcfg = buildcfg.BuildConfiguration(True)
-        self.rc = client.rMakeClient(self.buildcfg.rmakeUrl)
+        self.pluginmgr = pluginmgr
+        self.rc = client.rMakeClient(bcfg.getServerUri())
 
     def readPlan(self, plan):
-        if plan.startsWith('http://') or plan.startswith('https://'):
+        if plan.startswith('http://') or plan.startswith('https://'):
             self.cfg.readUrl(plan)
         else:
             self.cfg.read(plan)
 
-        for name, section in self.cfg._sections:
+        for name, section in self.cfg._sections.iteritems():
             sectype, name = name.split(':', 1)
             if sectype == 'target':
-                self.targets[name] = CookTarget(name, section)
+                self.targets[name] = section
             elif sectype == 'test':
-                self.tests[name] = CookTest(name, section)
+                self.tests[name] = section
             else:
                 assert False
 
@@ -61,31 +73,34 @@ class CookBob(object):
         '''
         # Determine the top-level trove specs to build
         troveSpecs = []
-        for targetName, targetCfg in self.targets:
+        for targetName in self.cfg.target:
+            targetCfg = self.targets[targetName]
             for flavor in flavors.expandByTarget(targetCfg):
-                troveSpecs += (targetName, self.cfg.sourceLabel, flavor, '')
+                flavor = deps.parseFlavor(flavor)
+                troveSpecs.append((targetName, self.cfg.sourceLabel, flavor))
 
         # Pre-build configuration
-        self.rc.addRepository(buildConfig)
-        self.buildcfg.limitToLabels(self.cfg.sourceLabel)
+        self.rc.addRepositoryInfo(self.buildcfg)
+        self.buildcfg.limitToLabels([self.cfg.sourceLabel.asString()])
 
-        cfg = copy.deepcopy(self.buildcfg) # XXX necessary?
-        cfg.dropContexts()
-        cfg.initializeFlavors()
-        cfg.buildLabel = self.cfg.sourceLabel
+        self.buildcfg.dropContexts()
+        self.buildcfg.initializeFlavors()
+        self.buildcfg.buildLabel = self.cfg.sourceLabel
+        self.buildcfg.installLabelPath = [self.cfg.sourceLabel] + \
+            self.cfg.installLabelPath
 
         # Create rMake job
         job = buildjob.BuildJob()
-        job.setMainConfig(cfg)
+        job.setMainConfig(self.buildcfg)
 
         # Determine which troves to build
-        troveList = getMangledTroves(cfg, troveSpecs)
+        troveList = self.getMangledTroves(troveSpecs)
 
         # Add troves to job
         for name, version, flavor in troveList:
             if flavor is None:
                 flavor = deps.parseFlavor('')
-            job.addTrove(name, version, flavor, '', bt)
+            job.addTrove(name, version, flavor, '')
 
         return job
 
@@ -98,108 +113,132 @@ class CookBob(object):
         return [(name, version, flavors)
             for (name, version), flavors in troveSpecs.iteritems()]
 
-    def getMangledTroves(self, cfg, troveSpecs):
-        toBuild = []
+    def getMangledTroves(self, troveSpecs):
+        # Key is name. value is (version, set(flavors)).
+        toBuild = {}
+        def markForBuilding(name, version, flavors):
+            toBuild.setdefault(name, (version, set()))[1].update(flavors)
 
-        rewrittenTroves = {}
-        resolvedGroups = {}
-
-        cfg.buildTroveSpecs = []
-        cfg.recurseGroups = buildcmd.BUILD_RECURSE_GROUPS_SOURCE
-        cfg.resolveTroveTups = buildcmd._getResolveTroveTups(cfg, self.nc)
-        localRepos = recipeutil.RemoveHostRepos(self.nc, cfg.reposName)
-        use.setBuildFlagsFromFlavor(None, cfg.buildFlavor, error=False)
+        self.buildcfg.buildTroveSpecs = []
+        self.buildcfg.resolveTroveTups = buildcmd._getResolveTroveTups(
+            self.buildcfg, self.nc)
+        localRepos = recipeutil.RemoveHostRepos(self.nc,
+            self.buildcfg.reposName)
+        use.setBuildFlagsFromFlavor(None, self.buildcfg.buildFlavor,
+            error=False)
 
         for name, version, flavors in self.groupTroveSpecs(troveSpecs):
-            # Don't even bother following recipes that are off-label. We
-            # don't need to mangle them, and we don't need to build them.
-            if not buildcmd._filterListByMatchSpecs(cfg.reposName,
-              cfg.matchTroveRule, [(name, version, None)]):
-                continue
+            name = name.split(':')[0] + ':source'
+
+            # Resolve an exact version to build
+            matches = self.nc.findTrove(None, (name, str(version), None))
+            version = max(x[1] for x in matches)
 
             # Mangle the trove before doing group lookup
-            if rewrittenTroves.has_key((name, version)):
-                newTrove = rewrittenTroves[(name, version)]
+            if name in toBuild:
+                version = toBuild[name][0]
             else:
-                newTrove = self.mangleTrove(cfg, name, version)
-                rewrittenTroves[(name, version)] = newTrove
-                toBuild.append(newTrove)
-                cfg.buildTroveSpecs.append(newTrove)
+                newTrove = self.mangleTrove(name, version)
+                version = newTrove[1]
+            markForBuilding(name, version, flavors)
 
             # Find all troves included if this is a group.
             if name.startswith('group-'):
-                sourceName = name.split(':')[0] + ':source'
-
                 for flavor in flavors:
-                    # Don't bother resolving the same NVF twice
-                    if resolvedGroups.has_key((sourceName, version, flavor)):
-                        continue
-
                     loader, recipeObj, relevantFlavor = \
-                        recipeutil.loadRecipe(self.nc, sourceName, version,
-                            flavor, defaultFlavor=cfg.buildFlavor,
-                            installLabelPath=cfg.installLabelPath,
-                            buildLabel=self.getLabelFromTag('test'))
-                    troveTups = grouprecipe.findSourcesForGroup(
-                        localRepos, recipeObj)
-                    toBuild.extend(troveTups)
+                        recipeutil.loadRecipe(self.nc, name, version,
+                            flavor, defaultFlavor=self.buildcfg.buildFlavor,
+                            installLabelPath=self.buildcfg.installLabelPath,
+                            buildLabel=self.cfg.sourceLabel,
+                            cfg=self.buildcfg)
+                    for n, v, f in grouprecipe.findSourcesForGroup(
+                      localRepos, recipeObj):
+                        if n not in toBuild and \
+                          v.trailingLabel() == self.cfg.sourceLabel:
+                            # This source has not been mangled but it is on
+                            # our configured source label, so it should be
+                            # mangled.
+                            newTrove = self.mangleTrove(n, v)
+                            markForBuilding(n, newTrove[1], [f])
+                        elif n in toBuild and f not in toBuild[n][1]:
+                            # This source has been mangled but the
+                            # particular flavor requested is not in the build
+                            # list yet.
+                            markForBuilding(n, None, f)
 
-        toBuild = _filterListByMatchSpecs(cfg.reposName, cfg.matchTroveRule,
-            toBuild)
-        return toBuild
+        buildTups = []
+        for name, (version, flavors) in toBuild.iteritems():
+            for flavor in flavors:
+                tup = (name, version, flavor)
+                buildTups.append(tup)
+                self.buildcfg.buildTroveSpecs.append(tup)
+        return buildTups
 
-    def mangleTrove(self, cfg, name, version):
-        oldKey = cfg.signatureKey
-        oldMap = cfg.signatureKeyMap
-        oldInteractive = cfg.interactive
+    def mangleTrove(self, name, version):
+        oldKey = self.buildcfg.signatureKey
+        oldMap = self.buildcfg.signatureKeyMap
+        oldInteractive = self.buildcfg.interactive
 
         package = name.split(':')[0]
         sourceName = package + ':source'
-        workDir = tempfile.mkdtemp(prefix='bob-mangle-%s' % package)
         newTrove = None
+
+        workDir = tempfile.mkdtemp(prefix='bob-mangle-%s' % package)
+        oldWd = os.getcwd()
+
         try:
-            cfg.signatureKey = None
-            cfg.signatureKeyMap = {}
-            cfg.interactive = False
+            self.buildcfg.signatureKey = None
+            self.buildcfg.signatureKeyMap = {}
+            self.buildcfg.interactive = False
+
+            # Find source
+            matches = self.nc.findTrove(None, (sourceName, str(version), None))
+            sourceVersion = max(x[1] for x in matches)
 
             # Shadow to rMake's internal repos
-            logging.info('Shadowing %s to rMake repository', package)
-            targetLabel = cfg.getTargetLabel(version)
-            skipped, cs = conaryclient.createShadowChangeSet(
-                str(targetLabel), [(sourceName, version, None)])
+            log.info('Shadowing %s to rMake repository', package)
+            targetLabel = self.buildcfg.getTargetLabel(version)
+            skipped, cs = self.cc.createShadowChangeSet(str(targetLabel),
+                [(sourceName, sourceVersion, deps.parseFlavor(''))])
             if not skipped:
-                signAbsoluteChangeset(cs, None)
+                cook.signAbsoluteChangeset(cs, None)
                 self.nc.commitChangeSet(cs)
 
             # Check out the shadow
-            checkin.checkout(self.nc, self.conarycfg,
-                ['%s=%s' % (name, version)])
+            shadowBranch = sourceVersion.createShadow(targetLabel).branch()
+            checkin.checkout(self.nc, self.buildcfg, workDir,
+                ['%s=%s' % (name, shadowBranch)])
+            os.chdir(workDir)
 
             # Mangle 
-            recipe = open('%s.recipe' % package).read()
-            recipe = mangle.mangle(self, package, recipe)
-            open('%s.recipe' % package).write(recipe)
+            oldRecipe = open('%s.recipe' % package).read()
+            recipe = mangle.mangle(self, package, oldRecipe)
+            if recipe != oldRecipe:
+                open('%s.recipe' % package, 'w').write(recipe)
 
-            # Commit changes back to the internal repos
-            logging.resetErrorOccurred()
-            checkin.commit(self.nc, self.conarycfg,
-                'Automated commit by Bob the Builder', force=True)
-            if logging.errorOccurred():
-                raise RuntimeError()
+                # Commit changes back to the internal repos
+                log.resetErrorOccurred()
+                checkin.commit(self.nc, self.buildcfg,
+                    'Automated commit by Bob the Builder', force=True)
+                if log.errorOccurred():
+                    raise RuntimeError()
 
             # Figure out the new version and return
-            state = ConaryStateFromFile('CONARY', self.nc).getSourceState()
-            newTrove = state.getNameVersionFlavor()
+            wd_state = state.ConaryStateFromFile('CONARY',
+                self.nc).getSourceState()
+            newTrove = wd_state.getNameVersionFlavor()
         finally:
-            cfg.signatureKey = oldKey
-            cfg.signatureKeyMap = oldMap
-            cfg.interactive = oldInteractive
+            self.buildcfg.signatureKey = oldKey
+            self.buildcfg.signatureKeyMap = oldMap
+            self.buildcfg.interactive = oldInteractive
+            os.chdir(oldWd)
             shutil.rmtree(workDir)
 
         return newTrove
 
     def getLabelFromTag(self, stage='test'):
-        return self.cfg.labelPrefix + self.cfg.tag + '-' + stage
+        return versions.Label(
+            self.cfg.labelPrefix + self.cfg.tag + '-' + stage)
 
     def run(self):
         # Get versions of all hg repositories
@@ -208,11 +247,21 @@ class CookBob(object):
             self.hg[name] = (repos, node)
 
         job = self.getJob()
-        jobId = client.buildJob(job)
+        jobId = self.rc.buildJob(job)
         print 'Job %d started' % jobId
 
         self.helper = helper.rMakeHelper(buildConfig=self.buildcfg)
-        helper.watch(jobId, showTroveLogs=True, commit=False)
+        self.helper.watch(jobId, showTroveLogs=True, commit=False)
+
+def getPluginManager():
+    cfg = buildcfg.BuildConfiguration(True, ignoreErrors=True)
+    if not getattr(cfg, 'usePlugins', True):
+        return plugins.PluginManager([])
+    disabledPlugins = [ x[0] for x in cfg.usePlugin.items() if not x[1] ]
+    disabledPlugins.append('monitor')
+    p = plugins.PluginManager(cfg.pluginDirs, disabledPlugins)
+    p.loadPlugins()
+    return p
 
 if __name__ == '__main__':
     try:
@@ -221,6 +270,16 @@ if __name__ == '__main__':
         print >>sys.stderr, 'Usage: %s <plan file or URI>' % sys.argv[0]
         sys.exit(1)
 
-    bob = CookBob()
+    class DummyMain:
+        def _registerCommand(*P, **K):
+            pass
+
+    # = plugins.getPluginManager(sys.argv, buildcfg.BuildConfiguration)
+    pluginmgr = getPluginManager()
+    pluginmgr.callClientHook('client_preInit', DummyMain(), sys.argv)
+    bcfg = buildcfg.BuildConfiguration(True)
+    bcfg.readFiles()
+
+    bob = CookBob(bcfg, pluginmgr)
     bob.readPlan(plan)
     bob.run()

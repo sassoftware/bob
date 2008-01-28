@@ -12,10 +12,10 @@ VMWARE = '!xen,!domU,!dom0,vmware,'
 RPL1 = '~X,~!alternatives,!bootstrap,~builddocs,~buildtests,!cross,' \
     '~desktop,~emacs,~gcj,~gnome,~grub.static,~gtk,~ipv6,~kde,~krb,~ldap,' \
     '~nptl,pam,~pcre,~perl,~!pie,~python,~qt,~readline,~!sasl,~!selinux,' \
-    'ssl,~tcl,tcpwrappers,~tk,~!xfce ' \
-    'is: x86(~cmov,~i486,~i586,~i686,~mmx,~nx, ~sse, ~sse2)'
-RPL1_X86 = '~dietlibc,' + RPL1
-RPL1_X86_64 = '~!dietlibc,' + RPL1
+    'ssl,~tcl,tcpwrappers,~tk,~!xfce'
+RPL1_X86 = '~dietlibc,' + RPL1 + \
+    ' is: x86(~cmov,~i486,~i586,~i686,~mmx,~nx, ~sse, ~sse2)'
+RPL1_X86_64 = '~!dietlibc,' + RPL1 + ' is: x86_64(~3dnow, ~3dnowext, ~nx)'
 
 sets = {
 'plain': [ PLAIN + RPL1_X86, PLAIN + RPL1_X86_64 ],
