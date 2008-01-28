@@ -30,6 +30,10 @@ from bob import config
 from bob import mangle
 from bob import flavors
 
+class DummyMain:
+    def _registerCommand(*P, **K):
+        pass
+
 class CookBob(object):
     def __init__(self, bcfg, pluginmgr):
         self.cfg = config.BobConfig()
@@ -97,10 +101,12 @@ class CookBob(object):
         troveList = self.getMangledTroves(troveSpecs)
 
         # Add troves to job
+        print 'These troves will be built:'
         for name, version, flavor in troveList:
             if flavor is None:
                 flavor = deps.parseFlavor('')
             job.addTrove(name, version, flavor, '')
+            print '%s=%s[%s]' % (name, version, flavor)
 
         return job
 
@@ -153,18 +159,22 @@ class CookBob(object):
                             cfg=self.buildcfg)
                     for n, v, f in grouprecipe.findSourcesForGroup(
                       localRepos, recipeObj):
+                        if f is None:
+                            f = deps.parseFlavor('')
+                        merged_flavor = deps.overrideFlavor(flavor, f)
                         if n not in toBuild and \
                           v.trailingLabel() == self.cfg.sourceLabel:
                             # This source has not been mangled but it is on
                             # our configured source label, so it should be
                             # mangled.
                             newTrove = self.mangleTrove(n, v)
-                            markForBuilding(n, newTrove[1], [f])
-                        elif n in toBuild and f not in toBuild[n][1]:
+                            markForBuilding(n, newTrove[1], [merged_flavor])
+                        elif n in toBuild and \
+                          merged_flavor not in toBuild[n][1]:
                             # This source has been mangled but the
                             # particular flavor requested is not in the build
                             # list yet.
-                            markForBuilding(n, None, f)
+                            markForBuilding(n, None, [merged_flavor])
 
         buildTups = []
         for name, (version, flavors) in toBuild.iteritems():
@@ -251,6 +261,12 @@ class CookBob(object):
         print 'Job %d started' % jobId
 
         self.helper = helper.rMakeHelper(buildConfig=self.buildcfg)
+
+        self.pluginmgr.callClientHook('client_preCommand', DummyMain(),
+            None, (self.buildcfg, self.buildcfg), None, None)
+        self.pluginmgr.callClientHook('client_preCommand2', DummyMain(),
+            self.helper, None)
+
         self.helper.watch(jobId, showTroveLogs=True, commit=False)
 
 def getPluginManager():
@@ -270,10 +286,6 @@ if __name__ == '__main__':
         print >>sys.stderr, 'Usage: %s <plan file or URI>' % sys.argv[0]
         sys.exit(1)
 
-    class DummyMain:
-        def _registerCommand(*P, **K):
-            pass
-
     # = plugins.getPluginManager(sys.argv, buildcfg.BuildConfiguration)
     pluginmgr = getPluginManager()
     pluginmgr.callClientHook('client_preInit', DummyMain(), sys.argv)
@@ -283,3 +295,4 @@ if __name__ == '__main__':
     bob = CookBob(bcfg, pluginmgr)
     bob.readPlan(plan)
     bob.run()
+
