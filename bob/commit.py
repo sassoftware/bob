@@ -11,6 +11,8 @@ from conary.trove import Trove
 from rmake import compat
 
 def commit(parent_bob, job):
+    target_label = parent_bob.getLabelFromTag('test')
+
     branch_map = {} # source_branch -> target_branch
     nbf_map = {} # name, target_branch, flavor -> trove, source_version
 
