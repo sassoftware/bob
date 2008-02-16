@@ -1,2 +1,3 @@
-.*\.(pyc|pyo|o|so)$
+.*\.(pyc|pyo|o|so|orig|rej)$
 (^|/)\..*\.swp$
+^[^/]+\.bob$
