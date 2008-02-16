@@ -25,6 +25,7 @@ from rmake.build import buildcfg
 from rmake.build import buildjob
 from rmake.cmdline import buildcmd
 from rmake.cmdline import helper
+from rmake.cmdline import monitor
 from rmake.lib import recipeutil
 from rmake.server import client
 
@@ -36,6 +37,11 @@ from bob import flavors
 class DummyMain:
     def _registerCommand(*P, **K):
         pass
+
+class StatusOnlyDisplay(monitor.JobLogDisplay):
+    '''Display only job and trove status. No log output.'''
+    def _troveLogUpdated(*P): pass
+    def _trovePreparingChroot(*P): pass
 
 class CookBob(object):
     def __init__(self, bcfg, pluginmgr):
@@ -279,7 +285,8 @@ class CookBob(object):
             None, (self.buildcfg, self.buildcfg), None, None)
         self.pluginmgr.callClientHook('client_preCommand2', DummyMain(),
             self.helper, None)
-        self.helper.watch(jobId, commit=False)
+        monitor.monitorJob(self.helper.client, jobId, exitOnFinish=True,
+            displayClass=StatusOnlyDisplay)
 
         # Check for error condition
         job = self.rc.getJob(jobId, withConfigs=True)
