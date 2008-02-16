@@ -315,32 +315,26 @@ class CookBob(object):
             self.rc.commitSucceeded(mapping)
 
         # Report committed troves
-        def _sortCommitted(tup1, tup2):
-            return cmp((tup1[0].endswith(':source'), tup1),
-                       (tup2[0].endswith(':source'), tup2))
-        def _formatTup(tup):
-            args = [tup[0], tup[1]]
-            if tup[2].isEmpty():
-                args.append('')
-            else:
-                args.append('[%s]' % buildTroveTup[2])
-            if not tup[3]:
-                args.append('')
-            else:
-                args.append('{%s}' % buildTroveTup[3])
-            return '%s=%s%s%s' % tuple(args)
-        for jobId, troveTupleDict in sorted(mapping.iteritems()):
-            print
-            print 'Committed job %s:\n' % jobId,
-            for buildTroveTup, committedList in \
-              sorted(troveTupleDict.iteritems()):
-                committedList = [ x for x in committedList
-                                    if (':' not in x[0]
-                                        or x[0].endswith(':source')) ]
-                print '    %s ->' % _formatTup(buildTroveTup)
-                print ''.join('       %s=%s[%s]\n' % x
-                              for x in sorted(committedList,
-                                              _sortCommitted))
+        package_map = {}
+        for committed_list in mapping[jobId].itervalues():
+            for name, version, flavor in committed_list:
+                package = name.split(':')[0]
+                package_map.setdefault(package, []).append((name,
+                    version, flavor))
+
+        for package in sorted(package_map):
+            troves = package_map[package]
+
+            packages = [x for x in troves if not ':' in x[0]]
+            if not packages:
+                print 'Trove %s has no packages. Tups: %s' % (package,
+                    troves)
+                continue
+
+            print '%s=%s' % (packages[0][:2])
+            flavors = set([x[2] for x in troves])
+            for flavor in sorted(flavors):
+                print '  %s' % flavor
 
 def getPluginManager():
     cfg = buildcfg.BuildConfiguration(True, ignoreErrors=True)
