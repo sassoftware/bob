@@ -16,8 +16,11 @@ from conary import versions
 from conary.build import cook
 from conary.build import grouprecipe
 from conary.build import use
+from conary.conaryclient import callbacks
 from conary.deps import deps
 from conary.lib import log
+from conary.trove import Trove
+from rmake import compat
 from rmake import plugins
 from rmake.build import buildcfg
 from rmake.build import buildjob
@@ -47,6 +50,8 @@ class CookBob(object):
 
         # conary/rmake config
         self.buildcfg = bcfg
+        if not hasattr(self.buildcfg, 'reposName'):
+            self.buildcfg.reposName = 'localhost'
 
         # conary client
         self.cc = conaryclient.ConaryClient(bcfg)
@@ -84,7 +89,6 @@ class CookBob(object):
                 troveSpecs.append((targetName, self.cfg.sourceLabel, flavor))
 
         # Pre-build configuration
-        self.rc.addRepositoryInfo(self.buildcfg)
         self.buildcfg.limitToLabels([self.cfg.sourceLabel.asString()])
 
         self.buildcfg.dropContexts()
@@ -92,6 +96,9 @@ class CookBob(object):
         self.buildcfg.buildLabel = self.cfg.sourceLabel
         self.buildcfg.installLabelPath = [self.cfg.sourceLabel] + \
             self.cfg.installLabelPath
+        self.buildcfg.resolveTroves = self.cfg.resolveTroves
+        self.buildcfg.resolveTroveTups = buildcmd._getResolveTroveTups(
+            self.buildcfg, self.nc)
 
         # Create rMake job
         job = buildjob.BuildJob()
@@ -121,20 +128,21 @@ class CookBob(object):
 
     def getMangledTroves(self, troveSpecs):
         # Key is name. value is (version, set(flavors)).
+        print 'Initializing build'
         toBuild = {}
         def markForBuilding(name, version, flavors):
             toBuild.setdefault(name, (version, set()))[1].update(flavors)
 
         self.buildcfg.buildTroveSpecs = []
-        self.buildcfg.resolveTroveTups = buildcmd._getResolveTroveTups(
-            self.buildcfg, self.nc)
         localRepos = recipeutil.RemoveHostRepos(self.nc,
             self.buildcfg.reposName)
         use.setBuildFlagsFromFlavor(None, self.buildcfg.buildFlavor,
             error=False)
 
+        print 'Iterating sources:'
         for name, version, flavors in self.groupTroveSpecs(troveSpecs):
             name = name.split(':')[0] + ':source'
+            print '  %s' % name
 
             # Resolve an exact version to build
             matches = self.nc.findTrove(None, (name, str(version), None))
@@ -164,6 +172,7 @@ class CookBob(object):
                         merged_flavor = deps.overrideFlavor(flavor, f)
                         if n not in toBuild and \
                           v.trailingLabel() == self.cfg.sourceLabel:
+                            print '    %s' % n
                             # This source has not been mangled but it is on
                             # our configured source label, so it should be
                             # mangled.
@@ -171,6 +180,7 @@ class CookBob(object):
                             markForBuilding(n, newTrove[1], [merged_flavor])
                         elif n in toBuild and \
                           merged_flavor not in toBuild[n][1]:
+                            print '    %s' % n
                             # This source has been mangled but the
                             # particular flavor requested is not in the build
                             # list yet.
@@ -229,7 +239,7 @@ class CookBob(object):
                 # Commit changes back to the internal repos
                 log.resetErrorOccurred()
                 checkin.commit(self.nc, self.buildcfg,
-                    'Automated commit by Bob the Builder', force=True)
+                    self.cfg.commitMessage, force=True)
                 if log.errorOccurred():
                     raise RuntimeError()
 
@@ -246,6 +256,112 @@ class CookBob(object):
 
         return newTrove
 
+    def commit(self, job):
+        target_label = self.getLabelFromTag('test')
+
+        branch_map = {} # source_branch -> target_branch
+        nbf_map = {} # name, target_branch, flavor -> trove, source_version
+
+        for trove in job.iterTroves():
+            source_name, source_version, _ = trove.getNameVersionFlavor()
+            assert source_version.getHost() == self.buildcfg.reposName
+
+            # Determine which branch this will be committed to
+            source_branch = source_version.branch()
+            origin_branch = source_branch.parentBranch()
+            target_branch = origin_branch.createShadow(target_label)
+
+            # Mark said branch for final promote
+            branch_map[source_branch] = target_branch
+
+            # Check for different versions of the same trove
+            nbf = source_name, target_branch, deps.Flavor()
+            if nbf in nbf_map and nbf_map[nbf][1] != source_version:
+                bad_version = nbf_map[nbf][1]
+                raise RuntimeError("Cannot commit two different versions of "
+                    "source component %s: %s and %s" % (source_name,
+                    source_version, bad_version))
+            nbf_map[nbf] = trove, source_version
+
+            # Add binary troves to mapping
+            for bin_name, bin_version, bin_flavor in trove.iterBuiltTroves():
+                nbf = bin_name, target_branch, bin_flavor
+                # Let's be lazy and not implement code that really does not
+                # apply to this specific use case.
+                assert nbf not in nbf_map, "This probably should not happen"
+                nbf_map[nbf] = trove, bin_version
+
+        # Determine what to clone
+        troves_to_clone = []
+
+        for (trv_name, trv_branch, trv_flavor), (trove, trv_version) \
+          in nbf_map.iteritems():
+            troves_to_clone.append((trv_name, trv_version, trv_flavor))
+
+        # Do the clone
+        update_build_info = compat.ConaryVersion()\
+            .acceptsPartialBuildReqCloning()
+        callback = callbacks.CloneCallback(self.buildcfg,
+            self.cfg.commitMessage)
+        okay, cs = self.cc.createTargetedCloneChangeSet(
+            branch_map, troves_to_clone,
+            updateBuildInfo=update_build_info,
+            cloneSources=False,
+            trackClone=False,
+            callback=callback,
+            fullRecurse=False)
+
+        # Sanity check the resulting changeset and produce a mapping of
+        # committed versions
+        mapping = {trove.jobId: {}}
+        if okay:
+            # First get trove objects for all relative changes
+            old_troves = []
+            for trove_cs in cs.iterNewTroveList():
+                if trove_cs.getOldVersion():
+                    old_troves.append(trove_cs.getOldNameVersionFlavor())
+            old_dict = {}
+            if old_troves:
+                for old_trove in self.nc.getTroves(old_troves):
+                    old_dict.setdefault(old_trove.getNameVersionFlavor(),
+                                        []).append(old_trove)
+
+            # Now iterate over all trove objects, using the old trove and
+            # applying changes when necessary
+            for trove_cs in cs.iterNewTroveList():
+                if trove_cs.getOldVersion():
+                    trv = old_dict[trove_cs.getOldNameVersionFlavor()].pop()
+                    trv.applyChangeSet(trove_cs)
+                else:
+                    trv = Trove(trove_cs)
+
+                # Make sure there are no references to the internal repos.
+                for _, child_version, _ in trv.iterTroveList(
+                  strongRefs=True, weakRefs=True):
+                    assert \
+                        child_version.getHost() != self.buildcfg.reposName, \
+                        "Trove %s references repository" % trv
+
+                #n,v,f = troveCs.getNewNameVersionFlavor()
+                trove_name, trove_version, trove_flavor = \
+                    trove_cs.getNewNameVersionFlavor()
+                trove_branch = trove_version.branch()
+                trove, _ = nbf_map[(trove_name, trove_branch, trove_flavor)]
+                trove_nvfc = trove.getNameVersionFlavor(withContext=True)
+                # map jobId -> trove -> binaries
+                mapping[trove.jobId].setdefault(trove_nvfc, []).append(
+                    (trove_name, trove_version, trove_flavor))
+        else:
+            raise RuntimeError('failed to clone finished build')
+
+        if compat.ConaryVersion().signAfterPromote():
+            cs = cook.signAbsoluteChangeset(cs)
+        filename = 'bob-%s.ccs' % job.jobId
+        cs.writeToFile(filename)
+        print 'Changeset written to %s' % filename
+
+        return mapping
+
     def getLabelFromTag(self, stage='test'):
         return versions.Label(
             self.cfg.labelPrefix + self.cfg.tag + '-' + stage)
@@ -256,18 +372,74 @@ class CookBob(object):
             node = 'tip'
             self.hg[name] = (repos, node)
 
+        self.rc.addRepositoryInfo(self.buildcfg)
+
         job = self.getJob()
         jobId = self.rc.buildJob(job)
         print 'Job %d started' % jobId
 
         self.helper = helper.rMakeHelper(buildConfig=self.buildcfg)
 
+        # Watch build (to stdout)
         self.pluginmgr.callClientHook('client_preCommand', DummyMain(),
             None, (self.buildcfg, self.buildcfg), None, None)
         self.pluginmgr.callClientHook('client_preCommand2', DummyMain(),
             self.helper, None)
+        self.helper.watch(jobId, commit=False)
 
-        self.helper.watch(jobId, showTroveLogs=True, commit=False)
+        # Check for error condition
+        job = self.rc.getJob(jobId, withConfigs=True)
+        if job.isFailed():
+            print 'Job %d failed' % jobId
+            return 2
+        elif job.isCommitting():
+            print 'Job %d is already committing ' \
+                '(probably to the wrong place)' % jobId
+            return 3
+        elif not job.isFinished():
+            print 'Job %d is not done, yet watch returned early!' % jobId
+            return 3
+        elif not list(job.iterBuiltTroves()):
+            print 'Job %d has no built troves' % jobId
+            return 3
+
+        # Commit to target repository
+        self.rc.startCommit([jobId])
+        try:
+            mapping = self.commit(job)
+        except Exception, e_value:
+            self.rc.commitFailed([jobId], str(e_value))
+            raise
+        else:
+            self.rc.commitSucceeded(mapping)
+
+        # Report committed troves
+        def _sortCommitted(tup1, tup2):
+            return cmp((tup1[0].endswith(':source'), tup1),
+                       (tup2[0].endswith(':source'), tup2))
+        def _formatTup(tup):
+            args = [tup[0], tup[1]]
+            if tup[2].isEmpty():
+                args.append('')
+            else:
+                args.append('[%s]' % buildTroveTup[2])
+            if not tup[3]:
+                args.append('')
+            else:
+                args.append('{%s}' % buildTroveTup[3])
+            return '%s=%s%s%s' % tuple(args)
+        for jobId, troveTupleDict in sorted(mapping.iteritems()):
+            print
+            print 'Committed job %s:\n' % jobId,
+            for buildTroveTup, committedList in \
+              sorted(troveTupleDict.iteritems()):
+                committedList = [ x for x in committedList
+                                    if (':' not in x[0]
+                                        or x[0].endswith(':source')) ]
+                print '    %s ->' % _formatTup(buildTroveTup)
+                print ''.join('       %s=%s[%s]\n' % x
+                              for x in sorted(committedList,
+                                              _sortCommitted))
 
 def getPluginManager():
     cfg = buildcfg.BuildConfiguration(True, ignoreErrors=True)
@@ -294,5 +466,5 @@ if __name__ == '__main__':
 
     bob = CookBob(bcfg, pluginmgr)
     bob.readPlan(plan)
-    bob.run()
+    sys.exit(bob.run())
 

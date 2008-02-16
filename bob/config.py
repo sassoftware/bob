@@ -7,6 +7,7 @@
 from conary.conarycfg import CfgFlavor, CfgLabel, CfgInstallLabelPath
 from conary.lib import cfg
 from conary.lib.cfgtypes import *
+from rmake.build.buildcfg import CfgTroveSpec
 
 class BobTargetSection(cfg.ConfigSection):
     hg                      = CfgString
@@ -23,6 +24,7 @@ class BobConfig(cfg.SectionedConfigFile):
     # source
     sourceLabel             = CfgLabel
     macro                   = CfgDict(CfgString)
+    resolveTroves           = CfgList(CfgQuotedLineList(CfgTroveSpec))
     hg                      = CfgDict(CfgString)
 
     # build
@@ -30,6 +32,9 @@ class BobConfig(cfg.SectionedConfigFile):
     shortenGroupFlavors     = (CfgBool, True)
     tag                     = CfgString
     target                  = CfgList(CfgString)
+
+    # misc
+    commitMessage           = (CfgString, 'Automated clone by bob3')
 
     # custom handling of sections
     _sectionMap = {'target': BobTargetSection, 'test': BobTestSection}
