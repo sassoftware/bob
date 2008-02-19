@@ -4,24 +4,29 @@
 # All rights reserved.
 #
 
+'''
+Mechanism for expanding macros from a trove context.
+'''
+
 import logging
 
 def expand(raw, parent, trove=None):
-    m = {}
+    '''Transform a raw string with available configuration data.'''
+    macros = {}
 
     # Basic info
-    m.update(parent.cfg.macro)
-    for x in 'tag',:
-        m[x] = getattr(parent.cfg, x)
+    macros.update(parent.cfg.macro)
+    for cfg_item in ('tag',):
+        macros[cfg_item] = getattr(parent.cfg, cfg_item)
 
     # Additional info available in trove contexts
     if trove:
         if trove in parent.targets:
             hg = parent.targets[trove].hg
             if hg and parent.hg.has_key(hg):
-                m['hg'] = parent.hg[hg][1]
+                macros['hg'] = parent.hg[hg][1]
             elif hg:
                 logging.warning('Trove %s references undefined Hg '
                     'repository %s', trove, hg)
 
-    return raw % m
+    return raw % macros

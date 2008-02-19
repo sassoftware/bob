@@ -6,7 +6,13 @@
 
 from conary.conarycfg import CfgFlavor, CfgLabel, CfgInstallLabelPath
 from conary.lib import cfg
-from conary.lib.cfgtypes import *
+from conary.lib.cfgtypes import CfgList
+from conary.lib.cfgtypes import CfgString
+from conary.lib.cfgtypes import CfgInt
+from conary.lib.cfgtypes import CfgDict
+from conary.lib.cfgtypes import CfgQuotedLineList
+from conary.lib.cfgtypes import CfgBool
+from conary.lib.cfgtypes import ParseError
 from rmake.build.buildcfg import CfgTroveSpec
 
 class BobTargetSection(cfg.ConfigSection):

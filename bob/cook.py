@@ -16,10 +16,8 @@ from conary import versions
 from conary.build import cook
 from conary.build import grouprecipe
 from conary.build import use
-from conary.conaryclient import callbacks
 from conary.deps import deps
 from conary.lib import log
-from rmake import compat
 from rmake import plugins
 from rmake.build import buildcfg
 from rmake.build import buildjob
@@ -40,8 +38,10 @@ class DummyMain:
 
 class StatusOnlyDisplay(monitor.JobLogDisplay):
     '''Display only job and trove status. No log output.'''
-    def _troveLogUpdated(*P): pass
-    def _trovePreparingChroot(*P): pass
+    def _troveLogUpdated(self, (jobId, troveTuple), state, status):
+        pass
+    def _trovePreparingChroot(self, (jobId, troveTuple), host, path):
+        pass
 
 class CookBob(object):
     def __init__(self, bcfg, pluginmgr):
@@ -66,6 +66,7 @@ class CookBob(object):
         # rmake client
         self.pluginmgr = pluginmgr
         self.rc = client.rMakeClient(bcfg.getServerUri())
+        self.helper = helper.rMakeHelper(buildConfig=self.buildcfg)
 
     def readPlan(self, plan):
         if plan.startswith('http://') or plan.startswith('https://'):
@@ -90,7 +91,7 @@ class CookBob(object):
         troveSpecs = []
         for targetName in self.cfg.target:
             targetCfg = self.targets[targetName]
-            for flavor in flavors.expandByTarget(targetCfg):
+            for flavor in flavors.expand_targets(targetCfg):
                 flavor = deps.parseFlavor(flavor)
                 troveSpecs.append((targetName, self.cfg.sourceLabel, flavor))
 
@@ -129,15 +130,15 @@ class CookBob(object):
             if f is None:
                 f = deps.parseFlavor('')
             troveSpecs.setdefault((n, v), []).append(f)
-        return [(name, version, flavors)
-            for (name, version), flavors in troveSpecs.iteritems()]
+        return [(name, version, flavor_list)
+            for (name, version), flavor_list in troveSpecs.iteritems()]
 
     def getMangledTroves(self, troveSpecs):
         # Key is name. value is (version, set(flavors)).
         print 'Initializing build'
         toBuild = {}
-        def markForBuilding(name, version, flavors):
-            toBuild.setdefault(name, (version, set()))[1].update(flavors)
+        def markForBuilding(name, version, flavor_list):
+            toBuild.setdefault(name, (version, set()))[1].update(flavor_list)
 
         self.buildcfg.buildTroveSpecs = []
         localRepos = recipeutil.RemoveHostRepos(self.nc,
@@ -146,7 +147,7 @@ class CookBob(object):
             error=False)
 
         print 'Iterating sources:'
-        for name, version, flavors in self.groupTroveSpecs(troveSpecs):
+        for name, version, flavor_list in self.groupTroveSpecs(troveSpecs):
             name = name.split(':')[0] + ':source'
             print '  %s' % name
 
@@ -160,11 +161,11 @@ class CookBob(object):
             else:
                 newTrove = self.mangleTrove(name, version)
                 version = newTrove[1]
-            markForBuilding(name, version, flavors)
+            markForBuilding(name, version, flavor_list)
 
             # Find all troves included if this is a group.
             if name.startswith('group-'):
-                for flavor in flavors:
+                for flavor in flavor_list:
                     loader, recipeObj, relevantFlavor = \
                         recipeutil.loadRecipe(self.nc, name, version,
                             flavor, defaultFlavor=self.buildcfg.buildFlavor,
@@ -193,8 +194,8 @@ class CookBob(object):
                             markForBuilding(n, None, [merged_flavor])
 
         buildTups = []
-        for name, (version, flavors) in toBuild.iteritems():
-            for flavor in flavors:
+        for name, (version, flavor_list) in toBuild.iteritems():
+            for flavor in flavor_list:
                 tup = (name, version, flavor)
                 buildTups.append(tup)
                 self.buildcfg.buildTroveSpecs.append(tup)
@@ -278,8 +279,6 @@ class CookBob(object):
         jobId = self.rc.buildJob(job)
         print 'Job %d started' % jobId
 
-        self.helper = helper.rMakeHelper(buildConfig=self.buildcfg)
-
         # Watch build (to stdout)
         self.pluginmgr.callClientHook('client_preCommand', DummyMain(),
             None, (self.buildcfg, self.buildcfg), None, None)
@@ -332,8 +331,8 @@ class CookBob(object):
                 continue
 
             print '%s=%s' % (packages[0][:2])
-            flavors = set([x[2] for x in troves])
-            for flavor in sorted(flavors):
+            flavor_list = set([x[2] for x in troves])
+            for flavor in sorted(flavor_list):
                 print '  %s' % flavor
 
 def getPluginManager():
@@ -342,16 +341,16 @@ def getPluginManager():
         return plugins.PluginManager([])
     disabledPlugins = [ x[0] for x in cfg.usePlugin.items() if not x[1] ]
     disabledPlugins.append('monitor')
-    p = plugins.PluginManager(cfg.pluginDirs, disabledPlugins)
-    p.loadPlugins()
-    return p
+    manager = plugins.PluginManager(cfg.pluginDirs, disabledPlugins)
+    manager.loadPlugins()
+    return manager
 
-if __name__ == '__main__':
+def main(args):
     try:
-        plan = sys.argv[1]
+        plan = args[0]
     except IndexError:
         print >>sys.stderr, 'Usage: %s <plan file or URI>' % sys.argv[0]
-        sys.exit(1)
+        return 1
 
     # = plugins.getPluginManager(sys.argv, buildcfg.BuildConfiguration)
     pluginmgr = getPluginManager()
@@ -361,5 +360,7 @@ if __name__ == '__main__':
 
     bob = CookBob(bcfg, pluginmgr)
     bob.readPlan(plan)
-    sys.exit(bob.run())
+    return bob.run()
 
+if __name__ == '__main__':
+    sys.exit(main(sys.argv[1:]))

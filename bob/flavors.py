@@ -4,6 +4,11 @@
 # All rights reserved.
 #
 
+'''
+Defines default flavor sets and provides a mechanism for reading a config
+target and producing a list of build flavors for that trove.
+'''
+
 PLAIN = '!xen,!domU,!dom0,!vmware,'
 DOMU = 'xen,domU,!dom0,!vmware,'
 DOM0 = 'xen,!domU,dom0,!vmware,'
@@ -17,7 +22,7 @@ RPL1_X86 = '~dietlibc,' + RPL1 + \
     ' is: x86(~cmov,~i486,~i586,~i686,~mmx,~nx, ~sse, ~sse2)'
 RPL1_X86_64 = '~!dietlibc,' + RPL1 + ' is: x86_64(~3dnow, ~3dnowext, ~nx)'
 
-sets = {
+SETS = {
 'plain': [ PLAIN + RPL1_X86, PLAIN + RPL1_X86_64 ],
 'dom0': [ DOM0 + RPL1_X86, PLAIN + RPL1_X86_64 ],
 'domU': [ DOMU + RPL1_X86, PLAIN + RPL1_X86_64 ],
@@ -26,14 +31,15 @@ sets = {
                VMWARE + RPL1_X86, VMWARE + RPL1_X86_64 ],
 }
 
-def expandByTarget(cfg):
+def expand_targets(cfg):
+    '''Accept a target config section and return a list of build flavors'''
     if cfg.flavor_set and cfg.flavor:
         raise RuntimeError('flavor_set and flavor cannot be used together')
 
     if cfg.flavor_set:
-        if sets.has_key(cfg.flavor_set):
-            return sets[cfg.flavor_set]
-        else:
+        try:
+            return SETS[cfg.flavor_set]
+        except IndexError:
             raise RuntimeError('flavor set "%s" is not defined'
                 % cfg.flavor_set)
     else:

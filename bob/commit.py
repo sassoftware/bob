@@ -4,6 +4,10 @@
 # All rights reserved.
 #
 
+'''
+Mechanism for committing bobs to a configured target repository.
+'''
+
 from conary.build import cook
 from conary.conaryclient import callbacks
 from conary.deps import deps
@@ -11,6 +15,51 @@ from conary.trove import Trove
 from rmake import compat
 
 def commit(parent_bob, job):
+    '''
+    Commit a job to the target repository.
+
+    @param job: rMake job
+    '''
+
+    okay, changeset, nbf_map = clone_job(parent_bob, job)
+
+    # Sanity check the resulting changeset and produce a mapping of
+    # committed versions
+    mapping = {job.jobId: {}}
+    if okay:
+        for trove in iter_new_troves(parent_bob.nc, changeset):
+            # Make sure there are no references to the internal repos.
+            for _, child_version, _ in trove.iterTroveList(
+              strongRefs=True, weakRefs=True):
+                assert child_version.getHost() \
+                    != parent_bob.buildcfg.reposName, \
+                    "Trove %s references repository" % trove
+
+            trove_name, trove_version, trove_flavor = \
+                trove.getNameVersionFlavor()
+            trove_branch = trove_version.branch()
+            trove, _ = nbf_map[(trove_name, trove_branch, trove_flavor)]
+            trove_nvfc = trove.getNameVersionFlavor(withContext=True)
+            # map jobId -> trove -> binaries
+            mapping[trove.jobId].setdefault(trove_nvfc, []).append(
+                (trove_name, trove_version, trove_flavor))
+    else:
+        raise RuntimeError('failed to clone finished build')
+
+    if compat.ConaryVersion().signAfterPromote():
+        changeset = cook.signAbsoluteChangeset(changeset)
+    filename = 'bob-%s.ccs' % job.jobId
+    changeset.writeToFile(filename)
+    print 'Changeset written to %s' % filename
+
+    return mapping
+
+def clone_job(parent_bob, job):
+    '''
+    Create a changeset that will clone all built troves into the target
+    label.
+    '''
+
     target_label = parent_bob.getLabelFromTag('test')
 
     branch_map = {} # source_branch -> target_branch
@@ -57,61 +106,40 @@ def commit(parent_bob, job):
         .acceptsPartialBuildReqCloning()
     callback = callbacks.CloneCallback(parent_bob.buildcfg,
         parent_bob.cfg.commitMessage)
-    okay, cs = parent_bob.cc.createTargetedCloneChangeSet(
+    okay, changeset = parent_bob.cc.createTargetedCloneChangeSet(
         branch_map, troves_to_clone,
         updateBuildInfo=update_build_info,
         cloneSources=False,
         trackClone=False,
         callback=callback,
         fullRecurse=False)
+    return okay, changeset, nbf_map
 
-    # Sanity check the resulting changeset and produce a mapping of
-    # committed versions
-    mapping = {trove.jobId: {}}
-    if okay:
-        # First get trove objects for all relative changes
-        old_troves = []
-        for trove_cs in cs.iterNewTroveList():
-            if trove_cs.getOldVersion():
-                old_troves.append(trove_cs.getOldNameVersionFlavor())
-        old_dict = {}
-        if old_troves:
-            for old_trove in parent_bob.nc.getTroves(old_troves):
-                old_dict.setdefault(old_trove.getNameVersionFlavor(),
-                                    []).append(old_trove)
+def iter_new_troves(changeset, nc):
+    '''
+    Take a changeset and yield trove objects corresponding to the new
+    versions of all troves in that changeset. This involves fetching old
+    troves and applying the changeset to them to produce the new troves.
+    '''
 
-        # Now iterate over all trove objects, using the old trove and
-        # applying changes when necessary
-        for trove_cs in cs.iterNewTroveList():
-            if trove_cs.getOldVersion():
-                trv = old_dict[trove_cs.getOldNameVersionFlavor()].pop()
-                trv.applyChangeSet(trove_cs)
-            else:
-                trv = Trove(trove_cs)
+    # First get a list of all relative trove changesets
+    old_troves = []
+    for trove_cs in changeset.iterNewTroveList():
+        if trove_cs.getOldVersion():
+            old_troves.append(trove_cs.getOldNameVersionFlavor())
 
-            # Make sure there are no references to the internal repos.
-            for _, child_version, _ in trv.iterTroveList(
-              strongRefs=True, weakRefs=True):
-                assert child_version.getHost() \
-                    != parent_bob.buildcfg.reposName, \
-                    "Trove %s references repository" % trv
+    # Now fetch trove objects corresponding to old versions
+    old_dict = {}
+    if old_troves:
+        for old_trove in nc.getTroves(old_troves):
+            old_dict.setdefault(old_trove.getNameVersionFlavor(),
+                                []).append(old_trove)
 
-            #n,v,f = troveCs.getNewNameVersionFlavor()
-            trove_name, trove_version, trove_flavor = \
-                trove_cs.getNewNameVersionFlavor()
-            trove_branch = trove_version.branch()
-            trove, _ = nbf_map[(trove_name, trove_branch, trove_flavor)]
-            trove_nvfc = trove.getNameVersionFlavor(withContext=True)
-            # map jobId -> trove -> binaries
-            mapping[trove.jobId].setdefault(trove_nvfc, []).append(
-                (trove_name, trove_version, trove_flavor))
-    else:
-        raise RuntimeError('failed to clone finished build')
-
-    if compat.ConaryVersion().signAfterPromote():
-        cs = cook.signAbsoluteChangeset(cs)
-    filename = 'bob-%s.ccs' % job.jobId
-    cs.writeToFile(filename)
-    print 'Changeset written to %s' % filename
-
-    return mapping
+    # Iterate over changeset again, yielding new trove objects
+    for trove_cs in changeset.iterNewTroveList():
+        if trove_cs.getOldVersion():
+            trv = old_dict[trove_cs.getOldNameVersionFlavor()].pop()
+            trv.applyChangeSet(trove_cs)
+            yield trv
+        else:
+            yield Trove(trove_cs)
