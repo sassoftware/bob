@@ -44,8 +44,8 @@ def _make_set(prefix, distro='rPL 1', arches=None):
     if not arches:
         arches = distro['arches'].keys()
 
-    for arch in arches:
-        arch_set = distro['arches'][arch]
+    for one_arch in arches:
+        arch_set = distro['arches'][one_arch]
         ret.append(deps.parseFlavor(prefix + arch_set['prefix'] +
             distro['base'] + arch_set['suffix']))
 
