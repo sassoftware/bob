@@ -4,6 +4,8 @@
 # All rights reserved.
 #
 
+import copy
+import md5
 import os
 import shutil
 import sys
@@ -21,6 +23,7 @@ from conary.lib import log
 from rmake import plugins
 from rmake.build import buildcfg
 from rmake.build import buildjob
+from rmake.build import buildtrove
 from rmake.cmdline import buildcmd
 from rmake.cmdline import helper
 from rmake.cmdline import monitor
@@ -68,6 +71,9 @@ class CookBob(object):
         self.rc = client.rMakeClient(bcfg.getServerUri())
         self.helper = helper.rMakeHelper(buildConfig=self.buildcfg)
 
+        # temporary stuff
+        self.flavorContexts = {}
+
     def readPlan(self, plan):
         if plan.startswith('http://') or plan.startswith('https://'):
             self.cfg.readUrl(plan)
@@ -83,59 +89,76 @@ class CookBob(object):
             else:
                 assert False
 
+    def makeContext(self, build_flavor, search_flavors):
+        '''
+        Create a context in the local buildcfg out of the specified build
+        and search flavors.
+        '''
+
+        # Calculate a unique context name based on the specified flavors.
+        ctx = md5.new()
+        ctx.update(build_flavor.freeze())
+        for search_flavor in search_flavors:
+            ctx.update(search_flavor.freeze())
+        name = ctx.hexdigest()[:12]
+
+        # Add a context if necessary and return the context name.
+        if name not in self.flavorContexts:
+            context = self.buildcfg.setSection(name)
+            context['buildFlavor'] = build_flavor
+            context['flavor'] = search_flavors
+
+        return name
+
     def getJob(self):
         '''
         Create a rMake build job given the configured target parameters.
         '''
-        # Determine the top-level trove specs to build
-        troveSpecs = []
-        for targetName in self.cfg.target:
-            targetCfg = self.targets[targetName]
-            for flavor in flavors.expand_targets(targetCfg):
-                flavor = deps.parseFlavor(flavor)
-                troveSpecs.append((targetName, self.cfg.sourceLabel, flavor))
 
         # Pre-build configuration
-        self.buildcfg.limitToLabels([self.cfg.sourceLabel.asString()])
-
-        self.buildcfg.dropContexts()
-        self.buildcfg.initializeFlavors()
-        self.buildcfg.buildLabel = self.cfg.sourceLabel
+        self.buildcfg.buildLabel = self.cfg.sourceLabel # XXX should this be the target?
         self.buildcfg.installLabelPath = [self.cfg.sourceLabel] + \
             self.cfg.installLabelPath
         self.buildcfg.resolveTroves = self.cfg.resolveTroves
         self.buildcfg.resolveTroveTups = buildcmd._getResolveTroveTups(
             self.buildcfg, self.nc)
+        self.buildcfg.initializeFlavors()
 
-        # Create rMake job
-        job = buildjob.BuildJob()
-        job.setMainConfig(self.buildcfg)
+        # Determine the top-level trove specs to build
+        troveSpecs = []
+        for targetName in self.cfg.target:
+            targetCfg = self.targets[targetName]
+            for flavor in flavors.expand_targets(targetCfg):
+                troveSpecs.append((targetName, self.cfg.sourceLabel, flavor))
 
         # Determine which troves to build
         troveList = self.getMangledTroves(troveSpecs)
 
-        # Add troves to job
-        print 'These troves will be built:'
+        # Create contexts for all required build configurations
+        troves_with_contexts = []
         for name, version, flavor in troveList:
-            if flavor is None:
-                flavor = deps.parseFlavor('')
-            job.addTrove(name, version, flavor, '')
-            print '%s=%s[%s]' % (name, version, flavor)
+            search_flavors = flavors.guess_search_flavors(flavor)
+            context = self.makeContext(flavor, search_flavors)
+            troves_with_contexts.append((name, version, flavor, context))
+
+        # Create rMake job
+        import epdb;epdb.st()
+        job = self.helper.createBuildJob(troves_with_contexts,
+            buildConfig=self.buildcfg)
 
         return job
 
     def groupTroveSpecs(self, troveList):
         troveSpecs = {}
         for n, v, f in troveList:
-            if f is None:
-                f = deps.parseFlavor('')
             troveSpecs.setdefault((n, v), []).append(f)
         return [(name, version, flavor_list)
             for (name, version), flavor_list in troveSpecs.iteritems()]
 
     def getMangledTroves(self, troveSpecs):
-        # Key is name. value is (version, set(flavors)).
         print 'Initializing build'
+
+        # Key is name. value is (version, set(flavors)).
         toBuild = {}
         def markForBuilding(name, version, flavor_list):
             toBuild.setdefault(name, (version, set()))[1].update(flavor_list)
