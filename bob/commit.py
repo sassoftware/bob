@@ -27,7 +27,7 @@ def commit(parent_bob, job):
     # committed versions
     mapping = {job.jobId: {}}
     if okay:
-        for trove in iter_new_troves(parent_bob.nc, changeset):
+        for trove in iter_new_troves(changeset, parent_bob.nc):
             # Make sure there are no references to the internal repos.
             for _, child_version, _ in trove.iterTroveList(
               strongRefs=True, weakRefs=True):

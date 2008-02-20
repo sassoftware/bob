@@ -142,7 +142,6 @@ class CookBob(object):
             troves_with_contexts.append((name, version, flavor, context))
 
         # Create rMake job
-        import epdb;epdb.st()
         job = self.helper.createBuildJob(troves_with_contexts,
             buildConfig=self.buildcfg)
 
