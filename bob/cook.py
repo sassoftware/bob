@@ -14,11 +14,9 @@ import tempfile
 
 from conary import conaryclient
 from conary import versions
-from conary.build import cook
 from conary.build import grouprecipe
 from conary.build import use
 from conary.deps import deps
-from conary.lib import log
 from rmake import plugins
 from rmake.build import buildcfg
 from rmake.build import buildjob
@@ -312,6 +310,7 @@ def getPluginManager():
     return manager
 
 def addRootLogger():
+    global log
     log = logging.getLogger('')
     handler = logging.StreamHandler()
     formatter = logging.Formatter('%(asctime)s %(levelname)s %(name)s %(message)s')

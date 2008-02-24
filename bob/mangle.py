@@ -17,6 +17,9 @@ import tempfile
 from conary import checkin
 from conary import state
 from conary import versions
+from conary.build import cook
+from conary.deps import deps
+from conary.lib import log as conary_log
 from conary.lib import util
 
 from bob import macro
@@ -110,13 +113,10 @@ def mangleTrove(parent, name, version):
         # Check out upstream version and fetch recipe
         log.debug('Checking out upstream trove %s=%s' % (sourceName,
             sourceVersion))
-        try:
-            checkin.checkout(parent.nc, parent.buildcfg, upstream_dir,
-                ['%s=%s' % (sourceName, sourceVersion)])
-            upstream_recipe = open(os.path.join(upstream_dir,
-                '%s.recipe' % package)).read()
-        finally:
-            shutil.rmtree(upstream_dir)
+        checkin.checkout(parent.nc, parent.buildcfg, upstream_dir,
+            ['%s=%s' % (sourceName, sourceVersion)])
+        upstream_recipe = open(os.path.join(upstream_dir,
+            '%s.recipe' % package)).read()
 
         # Shadow to rMake's internal repos
         log.debug('Shadowing %s to rMake repository', package)
@@ -142,10 +142,10 @@ def mangleTrove(parent, name, version):
         open('%s.recipe' % package, 'w').write(recipe)
 
         # Commit changes back to the internal repos
-        log.resetErrorOccurred()
+        conary_log.resetErrorOccurred()
         checkin.commit(parent.nc, parent.buildcfg,
             parent.cfg.commitMessage, force=True)
-        if log.errorOccurred():
+        if conary_log.errorOccurred():
             raise RuntimeError()
 
         # Figure out the new version and return
