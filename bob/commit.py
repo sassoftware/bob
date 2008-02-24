@@ -48,10 +48,7 @@ def commit(parent_bob, job):
 
     if compat.ConaryVersion().signAfterPromote():
         changeset = cook.signAbsoluteChangeset(changeset)
-    filename = 'bob-%s.ccs' % job.jobId
-    changeset.writeToFile(filename)
-    print 'Changeset written to %s' % filename
-
+    parent_bob.nc.commitChangeSet(changeset)
     return mapping
 
 def clone_job(parent_bob, job):
