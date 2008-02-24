@@ -21,9 +21,6 @@ class BobTargetSection(cfg.ConfigSection):
     flavor                  = CfgList(CfgFlavor)
     version                 = CfgString
 
-class BobTestSection(cfg.ConfigSection):
-    strip                   = CfgInt
-
 class BobConfig(cfg.SectionedConfigFile):
     labelPrefix             = (CfgString, 'bob3.rb.rpath.com@rpath:')
 
@@ -43,7 +40,7 @@ class BobConfig(cfg.SectionedConfigFile):
     commitMessage           = (CfgString, 'Automated clone by bob3')
 
     # custom handling of sections
-    _sectionMap = {'target': BobTargetSection, 'test': BobTestSection}
+    _sectionMap = {'target': BobTargetSection}
 
     def setSection(self, sectionName):
         for name, typeobj in self._sectionMap.iteritems():
