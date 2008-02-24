@@ -29,8 +29,9 @@ from rmake.server import client
 
 from bob import commit
 from bob import config
-from bob import mangle
 from bob import flavors
+from bob import hg
+from bob import mangle
 from bob import test
 
 class DummyMain:
