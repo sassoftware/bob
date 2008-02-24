@@ -34,9 +34,13 @@ from bob import hg
 from bob import mangle
 from bob import test
 
+log = logging.getLogger('bob.cook')
+
+
 class DummyMain:
     def _registerCommand(*P, **K):
         pass
+
 
 class StatusOnlyDisplay(monitor.JobLogDisplay):
     '''Display only job and trove status. No log output.'''
@@ -44,6 +48,7 @@ class StatusOnlyDisplay(monitor.JobLogDisplay):
         pass
     def _trovePreparingChroot(self, (jobId, troveTuple), host, path):
         pass
+
 
 class CookBob(object):
     def __init__(self, bcfg, pluginmgr):
@@ -74,6 +79,7 @@ class CookBob(object):
         self.flavorContexts = {}
 
     def readPlan(self, plan):
+        log.debug('Fetching plan %s', plan)
         if plan.startswith('http://') or plan.startswith('https://'):
             self.cfg.readUrl(plan)
         else:
@@ -113,6 +119,7 @@ class CookBob(object):
         '''
         Create a rMake build job given the configured target parameters.
         '''
+        log.info('Creating build job')
 
         # Pre-build configuration
         self.buildcfg.buildLabel = self.cfg.sourceLabel # XXX should this be the target?
@@ -154,7 +161,11 @@ class CookBob(object):
             for (name, version), flavor_list in troveSpecs.iteritems()]
 
     def getMangledTroves(self, troveSpecs):
-        print 'Initializing build'
+        '''
+        Determine the final list of troves to build by following groups.
+        Mangle sources before adding to the build list.
+        '''
+        log.info('Determining which troves to build')
 
         # Key is name. value is (version, set(flavors)).
         toBuild = {}
@@ -167,10 +178,9 @@ class CookBob(object):
         use.setBuildFlagsFromFlavor(None, self.buildcfg.buildFlavor,
             error=False)
 
-        print 'Iterating sources:'
         for name, version, flavor_list in self.groupTroveSpecs(troveSpecs):
             name = name.split(':')[0] + ':source'
-            print '  %s' % name
+            log.debug('Inspecting %s', name)
 
             # Resolve an exact version to build
             matches = self.nc.findTrove(None, (name, str(version), None))
@@ -186,6 +196,7 @@ class CookBob(object):
 
             # Find all troves included if this is a group.
             if name.startswith('group-'):
+                log.debug('Following %s', name)
                 for flavor in flavor_list:
                     loader, recipeObj, relevantFlavor = \
                         recipeutil.loadRecipe(self.nc, name, version,
@@ -200,15 +211,14 @@ class CookBob(object):
                         merged_flavor = deps.overrideFlavor(flavor, f)
                         if n not in toBuild and \
                           v.trailingLabel() == self.cfg.sourceLabel:
-                            print '    %s' % n
                             # This source has not been mangled but it is on
                             # our configured source label, so it should be
                             # mangled.
                             newTrove = mangle.mangleTrove(self, n, v)
                             markForBuilding(n, newTrove[1], [merged_flavor])
+                            log.debug('Adding %s=%s to build list', n, v)
                         elif n in toBuild and \
                           merged_flavor not in toBuild[n][1]:
-                            print '    %s' % n
                             # This source has been mangled but the
                             # particular flavor requested is not in the build
                             # list yet.
@@ -235,7 +245,7 @@ class CookBob(object):
 
         job = self.getJob()
         jobId = self.rc.buildJob(job)
-        print 'Job %d started' % jobId
+        log.info('Job %d started', jobId)
 
         ## Watch build (to stdout)
         self.pluginmgr.callClientHook('client_preCommand', DummyMain(),
@@ -248,25 +258,25 @@ class CookBob(object):
         ## Check for error condition
         job = self.rc.getJob(jobId, withConfigs=True)
         if job.isFailed():
-            print 'Job %d failed' % jobId
+            log.error('Job %d failed', jobId)
             return 2
         elif not job.isFinished():
-            print 'Job %d is not done, yet watch returned early!' % jobId
+            log.error('Job %d is not done, yet watch returned early!', jobId)
             return 3
         elif not list(job.iterBuiltTroves()):
-            print 'Job %d has no built troves' % jobId
+            log.error('Job %d has no built troves', jobId)
             return 3
 
         # Fetch test/coverage output
         success = test.processTests(self, job)
         if not success:
-            print 'Some tests failed, aborting'
+            log.error('Some tests failed, aborting')
             return 4
 
         # Commit to target repository
         if job.isCommitting():
-            print 'Job %d is already committing ' \
-                '(probably to the wrong place)' % jobId
+            log.error('Job %d is already committing ' \
+                '(probably to the wrong place)', jobId)
             return 3
         self.rc.startCommit([jobId])
         try:
@@ -285,19 +295,20 @@ class CookBob(object):
                 package_map.setdefault(package, []).append((name,
                     version, flavor))
 
+        log.info('Built:')
         for package in sorted(package_map):
             troves = package_map[package]
 
             packages = [x for x in troves if not ':' in x[0]]
             if not packages:
-                print 'Trove %s has no packages. Tups: %s' % (package,
+                log.warning('Trove %s has no packages. Tups: %s', package,
                     troves)
                 continue
 
-            print '%s=%s' % (packages[0][:2])
+            log.info('%s=%s', packages[0][0], packages[0][1])
             flavor_list = set([x[2] for x in troves])
             for flavor in sorted(flavor_list):
-                print '  %s' % flavor
+                log.info('  %s', str(flavor))
 
 def getPluginManager():
     cfg = buildcfg.BuildConfiguration(True, ignoreErrors=True)
@@ -310,13 +321,12 @@ def getPluginManager():
     return manager
 
 def addRootLogger():
-    global log
-    log = logging.getLogger('')
+    root_log = logging.getLogger('')
     handler = logging.StreamHandler()
     formatter = logging.Formatter('%(asctime)s %(levelname)s %(name)s %(message)s')
     handler.setFormatter(formatter)
-    log.addHandler(handler)
-    log.setLevel(logging.DEBUG)
+    root_log.addHandler(handler)
+    root_log.setLevel(logging.DEBUG)
 
 def main(args):
     try:

@@ -26,6 +26,8 @@ def get_tip(uri):
         for line in open('tips'):
             _uri, _tip = line.split(' ', 1)
             if _uri == uri:
+                log.debug('Selected for %s revision %s (from tips)',
+                    uri, _tip)
                 return _tip[:12]
     except IOError:
         log.warning('Tips file does not exist while fetching repository %s',
@@ -33,7 +35,9 @@ def get_tip(uri):
 
         hg_ui = ui.ui()
         repo = hg.repository(hg_ui, uri)
-        return short(repo.heads()[0])
+        tip = short(repo.heads()[0])
+        log.debug('Selected for %s revision %s (from repo)', uri, tip)
+        return tip
     else:
         raise RuntimeError('tips file exists, but does not contain '
             'repository %s' % uri)
