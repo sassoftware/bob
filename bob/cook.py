@@ -227,9 +227,8 @@ class CookBob(object):
 
     def run(self):
         # Get versions of all hg repositories
-        for name, repos in self.cfg.hg.iteritems():
-            node = 'tip'
-            self.hg[name] = (repos, node)
+        for name, uri in self.cfg.hg.iteritems():
+            self.hg[name] = (uri, hg.get_tip(uri))
 
         self.rc.addRepositoryInfo(self.buildcfg)
 
