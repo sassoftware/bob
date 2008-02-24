@@ -11,9 +11,7 @@ import shutil
 import sys
 import tempfile
 
-from conary import checkin
 from conary import conaryclient
-from conary import state
 from conary import versions
 from conary.build import cook
 from conary.build import grouprecipe
@@ -181,7 +179,7 @@ class CookBob(object):
             if name in toBuild:
                 version = toBuild[name][0]
             else:
-                newTrove = self.mangleTrove(name, version)
+                newTrove = mangle.mangleTrove(self, name, version)
                 version = newTrove[1]
             markForBuilding(name, version, flavor_list)
 
@@ -205,7 +203,7 @@ class CookBob(object):
                             # This source has not been mangled but it is on
                             # our configured source label, so it should be
                             # mangled.
-                            newTrove = self.mangleTrove(n, v)
+                            newTrove = mangle.mangleTrove(self, n, v)
                             markForBuilding(n, newTrove[1], [merged_flavor])
                         elif n in toBuild and \
                           merged_flavor not in toBuild[n][1]:
@@ -222,68 +220,6 @@ class CookBob(object):
                 buildTups.append(tup)
                 self.buildcfg.buildTroveSpecs.append(tup)
         return buildTups
-
-    def mangleTrove(self, name, version):
-        oldKey = self.buildcfg.signatureKey
-        oldMap = self.buildcfg.signatureKeyMap
-        oldInteractive = self.buildcfg.interactive
-
-        package = name.split(':')[0]
-        sourceName = package + ':source'
-        newTrove = None
-
-        workDir = tempfile.mkdtemp(prefix='bob-mangle-%s' % package)
-        oldWd = os.getcwd()
-
-        try:
-            self.buildcfg.signatureKey = None
-            self.buildcfg.signatureKeyMap = {}
-            self.buildcfg.interactive = False
-
-            # Find source
-            matches = self.nc.findTrove(None, (sourceName, str(version), None))
-            sourceVersion = max(x[1] for x in matches)
-
-            # Shadow to rMake's internal repos
-            log.info('Shadowing %s to rMake repository', package)
-            targetLabel = self.buildcfg.getTargetLabel(version)
-            skipped, cs = self.cc.createShadowChangeSet(str(targetLabel),
-                [(sourceName, sourceVersion, deps.parseFlavor(''))])
-            if not skipped:
-                cook.signAbsoluteChangeset(cs, None)
-                self.nc.commitChangeSet(cs)
-
-            # Check out the shadow
-            shadowBranch = sourceVersion.createShadow(targetLabel).branch()
-            checkin.checkout(self.nc, self.buildcfg, workDir,
-                ['%s=%s' % (name, shadowBranch)])
-            os.chdir(workDir)
-
-            # Mangle 
-            oldRecipe = open('%s.recipe' % package).read()
-            recipe = mangle.mangle(self, package, oldRecipe)
-            if recipe != oldRecipe:
-                open('%s.recipe' % package, 'w').write(recipe)
-
-                # Commit changes back to the internal repos
-                log.resetErrorOccurred()
-                checkin.commit(self.nc, self.buildcfg,
-                    self.cfg.commitMessage, force=True)
-                if log.errorOccurred():
-                    raise RuntimeError()
-
-            # Figure out the new version and return
-            wd_state = state.ConaryStateFromFile('CONARY',
-                self.nc).getSourceState()
-            newTrove = wd_state.getNameVersionFlavor()
-        finally:
-            self.buildcfg.signatureKey = oldKey
-            self.buildcfg.signatureKeyMap = oldMap
-            self.buildcfg.interactive = oldInteractive
-            os.chdir(oldWd)
-            shutil.rmtree(workDir)
-
-        return newTrove
 
     def getLabelFromTag(self, stage='test'):
         return versions.Label(
