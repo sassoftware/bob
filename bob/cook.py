@@ -5,6 +5,7 @@
 #
 
 import copy
+import logging
 import md5
 import os
 import shutil
@@ -32,6 +33,7 @@ from bob import commit
 from bob import config
 from bob import mangle
 from bob import flavors
+from bob import test
 
 class DummyMain:
     def _registerCommand(*P, **K):
@@ -237,7 +239,7 @@ class CookBob(object):
         jobId = self.rc.buildJob(job)
         print 'Job %d started' % jobId
 
-        # Watch build (to stdout)
+        ## Watch build (to stdout)
         self.pluginmgr.callClientHook('client_preCommand', DummyMain(),
             None, (self.buildcfg, self.buildcfg), None, None)
         self.pluginmgr.callClientHook('client_preCommand2', DummyMain(),
@@ -245,15 +247,11 @@ class CookBob(object):
         monitor.monitorJob(self.helper.client, jobId, exitOnFinish=True,
             displayClass=StatusOnlyDisplay)
 
-        # Check for error condition
+        ## Check for error condition
         job = self.rc.getJob(jobId, withConfigs=True)
         if job.isFailed():
             print 'Job %d failed' % jobId
             return 2
-        elif job.isCommitting():
-            print 'Job %d is already committing ' \
-                '(probably to the wrong place)' % jobId
-            return 3
         elif not job.isFinished():
             print 'Job %d is not done, yet watch returned early!' % jobId
             return 3
@@ -261,7 +259,17 @@ class CookBob(object):
             print 'Job %d has no built troves' % jobId
             return 3
 
+        # Fetch test/coverage output
+        success = test.processTests(self, job)
+        if not success:
+            print 'Some tests failed, aborting'
+            return 4
+
         # Commit to target repository
+        if job.isCommitting():
+            print 'Job %d is already committing ' \
+                '(probably to the wrong place)' % jobId
+            return 3
         self.rc.startCommit([jobId])
         try:
             mapping = commit.commit(self, job)
@@ -303,12 +311,22 @@ def getPluginManager():
     manager.loadPlugins()
     return manager
 
+def addRootLogger():
+    log = logging.getLogger('')
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter('%(asctime)s %(levelname)s %(name)s %(message)s')
+    handler.setFormatter(formatter)
+    log.addHandler(handler)
+    log.setLevel(logging.DEBUG)
+
 def main(args):
     try:
         plan = args[0]
     except IndexError:
         print >>sys.stderr, 'Usage: %s <plan file or URI>' % sys.argv[0]
         return 1
+
+    addRootLogger()
 
     # = plugins.getPluginManager(sys.argv, buildcfg.BuildConfiguration)
     pluginmgr = getPluginManager()
