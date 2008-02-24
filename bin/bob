@@ -1,0 +1,10 @@
+#!/usr/bin/python
+#
+# Copyright (c) 2008 rPath, Inc.
+#
+# All rights reserved.
+#
+
+import sys
+from bob import cook
+sys.exit(cook.main(sys.argv[1:]))
