@@ -13,6 +13,7 @@ import os
 import re
 import shutil
 import tempfile
+import time
 
 from conary import checkin
 from conary import state
@@ -87,6 +88,8 @@ def mangleTrove(parent, name, version):
     the internal repository.
     '''
 
+    _start_time = time.time()
+
     oldKey = parent.buildcfg.signatureKey
     oldMap = parent.buildcfg.signatureKeyMap
     oldInteractive = parent.buildcfg.interactive
@@ -106,13 +109,13 @@ def mangleTrove(parent, name, version):
         parent.buildcfg.interactive = False
 
         # Find source
-        log.debug('Finding trove %s=%s' % (sourceName, version))
+        log.debug('Finding trove %s=%s', sourceName, version)
         matches = parent.nc.findTrove(None, (sourceName, str(version), None))
         sourceVersion = max(x[1] for x in matches)
 
         # Check out upstream version and fetch recipe
-        log.debug('Checking out upstream trove %s=%s' % (sourceName,
-            sourceVersion))
+        log.debug('Checking out upstream trove %s=%s',
+            sourceName, sourceVersion)
         checkin.checkout(parent.nc, parent.buildcfg, upstream_dir,
             ['%s=%s' % (sourceName, sourceVersion)])
         upstream_recipe = open(os.path.join(upstream_dir,
@@ -128,7 +131,7 @@ def mangleTrove(parent, name, version):
             parent.nc.commitChangeSet(cs)
 
         # Check out the shadow
-        log.debug('Checking out internal trove %s' % sourceName)
+        log.debug('Checking out internal %s', sourceName)
         shadowBranch = sourceVersion.createShadow(targetLabel).branch()
         checkin.checkout(parent.nc, parent.buildcfg, work_dir,
             ['%s=%s' % (sourceName, shadowBranch)])
@@ -142,6 +145,7 @@ def mangleTrove(parent, name, version):
         open('%s.recipe' % package, 'w').write(recipe)
 
         # Commit changes back to the internal repos
+        log.debug('Committing mangled %s', sourceName)
         conary_log.resetErrorOccurred()
         checkin.commit(parent.nc, parent.buildcfg,
             parent.cfg.commitMessage, force=True)
@@ -159,6 +163,10 @@ def mangleTrove(parent, name, version):
         os.chdir(oldWd)
         shutil.rmtree(work_dir)
         shutil.rmtree(upstream_dir)
+
+    _finish_time = time.time()
+    log.debug('Committed %s=%s', newTrove[0], newTrove[1])
+    log.debug('Mangling took %.03f seconds', _finish_time - _start_time)
 
     return newTrove
 
