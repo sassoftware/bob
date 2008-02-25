@@ -6,13 +6,9 @@
 
 from conary.conarycfg import CfgFlavor, CfgLabel, CfgInstallLabelPath
 from conary.lib import cfg
-from conary.lib.cfgtypes import CfgList
-from conary.lib.cfgtypes import CfgString
-from conary.lib.cfgtypes import CfgInt
-from conary.lib.cfgtypes import CfgDict
-from conary.lib.cfgtypes import CfgQuotedLineList
-from conary.lib.cfgtypes import CfgBool
-from conary.lib.cfgtypes import ParseError
+from conary.lib.cfgtypes import CfgList, CfgString, CfgInt, CfgDict
+from conary.lib.cfgtypes import CfgQuotedLineList, CfgBool, ParseError
+from conary.versions import Label
 from rmake.build.buildcfg import CfgTroveSpec
 
 class BobTargetSection(cfg.ConfigSection):
@@ -22,7 +18,7 @@ class BobTargetSection(cfg.ConfigSection):
     version                 = CfgString
 
 class BobConfig(cfg.SectionedConfigFile):
-    labelPrefix             = (CfgString, 'bob3.rb.rpath.com@rpath:')
+    targetLabel             = (CfgLabel, Label('bob3.rb.rpath.com@rpl:1'))
 
     # source
     sourceLabel             = CfgLabel
@@ -33,7 +29,6 @@ class BobConfig(cfg.SectionedConfigFile):
     # build
     installLabelPath        = CfgInstallLabelPath
     shortenGroupFlavors     = (CfgBool, True)
-    tag                     = CfgString
     target                  = CfgList(CfgString)
 
     # misc

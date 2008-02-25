@@ -232,10 +232,6 @@ class CookBob(object):
                 self.buildcfg.buildTroveSpecs.append(tup)
         return buildTups
 
-    def getLabelFromTag(self, stage='test'):
-        return versions.Label(
-            self.cfg.labelPrefix + self.cfg.tag + '-' + stage)
-
     def run(self):
         # Get versions of all hg repositories
         for name, uri in self.cfg.hg.iteritems():

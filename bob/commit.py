@@ -14,25 +14,25 @@ from conary.deps import deps
 from conary.trove import Trove
 from rmake import compat
 
-def commit(parent_bob, job):
+def commit(parent, job):
     '''
     Commit a job to the target repository.
 
     @param job: rMake job
     '''
 
-    okay, changeset, nbf_map = clone_job(parent_bob, job)
+    okay, changeset, nbf_map = clone_job(parent, job)
 
     # Sanity check the resulting changeset and produce a mapping of
     # committed versions
     mapping = {job.jobId: {}}
     if okay:
-        for trove in iter_new_troves(changeset, parent_bob.nc):
+        for trove in iter_new_troves(changeset, parent.nc):
             # Make sure there are no references to the internal repos.
             for _, child_version, _ in trove.iterTroveList(
               strongRefs=True, weakRefs=True):
                 assert child_version.getHost() \
-                    != parent_bob.buildcfg.reposName, \
+                    != parent.buildcfg.reposName, \
                     "Trove %s references repository" % trove
 
             trove_name, trove_version, trove_flavor = \
@@ -48,28 +48,26 @@ def commit(parent_bob, job):
 
     if compat.ConaryVersion().signAfterPromote():
         changeset = cook.signAbsoluteChangeset(changeset)
-    parent_bob.nc.commitChangeSet(changeset)
+    parent.nc.commitChangeSet(changeset)
     return mapping
 
-def clone_job(parent_bob, job):
+def clone_job(parent, job):
     '''
     Create a changeset that will clone all built troves into the target
     label.
     '''
-
-    target_label = parent_bob.getLabelFromTag('test')
 
     branch_map = {} # source_branch -> target_branch
     nbf_map = {} # name, target_branch, flavor -> trove, source_version
 
     for trove in job.iterTroves():
         source_name, source_version, _ = trove.getNameVersionFlavor()
-        assert source_version.getHost() == parent_bob.buildcfg.reposName
+        assert source_version.getHost() == parent.buildcfg.reposName
 
         # Determine which branch this will be committed to
         source_branch = source_version.branch()
         origin_branch = source_branch.parentBranch()
-        target_branch = origin_branch.createShadow(target_label)
+        target_branch = origin_branch.createShadow(parent.cfg.targetLabel)
 
         # Mark said branch for final promote
         branch_map[source_branch] = target_branch
@@ -101,9 +99,9 @@ def clone_job(parent_bob, job):
     # Do the clone
     update_build_info = compat.ConaryVersion()\
         .acceptsPartialBuildReqCloning()
-    callback = callbacks.CloneCallback(parent_bob.buildcfg,
-        parent_bob.cfg.commitMessage)
-    okay, changeset = parent_bob.cc.createTargetedCloneChangeSet(
+    callback = callbacks.CloneCallback(parent.buildcfg,
+        parent.cfg.commitMessage)
+    okay, changeset = parent.cc.createTargetedCloneChangeSet(
         branch_map, troves_to_clone,
         updateBuildInfo=update_build_info,
         cloneSources=False,
