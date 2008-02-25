@@ -325,7 +325,7 @@ def getPluginManager():
 
 def addRootLogger():
     root_log = logging.getLogger('')
-    handler = logging.StreamHandler()
+    handler = logging.StreamHandler(sys.stdout)
     formatter = logging.Formatter('%(asctime)s %(levelname)s %(name)s %(message)s')
     handler.setFormatter(formatter)
     root_log.addHandler(handler)
