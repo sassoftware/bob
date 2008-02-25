@@ -16,7 +16,7 @@ def expand(raw, parent, trove=None):
 
     # Basic info
     macros.update(parent.cfg.macro)
-    for cfg_item in ('tag',):
+    for cfg_item in ('targetLabel',):
         macros[cfg_item] = getattr(parent.cfg, cfg_item)
 
     # Additional info available in trove contexts
