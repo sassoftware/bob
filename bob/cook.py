@@ -331,6 +331,12 @@ def addRootLogger():
     root_log.addHandler(handler)
     root_log.setLevel(logging.DEBUG)
 
+    # Delete conary's log handler since it puts things on stderr and without
+    # any timestamps.
+    conary_log = logging.getLogger('conary')
+    for handler in conary_log.handlers:
+        conary_log.removeHandler(handler)
+
 def main(args):
     try:
         plan = args[0]
