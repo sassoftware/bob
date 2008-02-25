@@ -8,6 +8,7 @@
 Module containing test-processing code.
 '''
 
+import cPickle
 import logging
 import re
 import sys
@@ -201,6 +202,7 @@ def processTests(parent_bob, job):
     '''
 
     test_suite = TestSuite()
+    cover_data = {}
 
     for build_trove in job.iterTroves():
         for name, version, flavor in build_trove.iterBuiltTroves():
@@ -208,8 +210,8 @@ def processTests(parent_bob, job):
                 continue
 
             configuration = None
-            test_files = []
-            cover_files = []
+            test_fobjs = []
+            cover_fobjs = []
 
             cs_job = [(name, (None, None), (version, flavor), True)]
             changeset = parent_bob.cc.createChangeSet(cs_job, withFiles=True,
@@ -226,19 +228,19 @@ def processTests(parent_bob, job):
                     if re_config_output.search(path):
                         configuration = getFile(pathId, fileId).read()
                     elif re_test_output.search(path):
-                        test_files.append(getFile(pathId, fileId))
+                        test_fobjs.append(getFile(pathId, fileId))
                     elif re_cover_output.search(path):
-                        cover_files.append(getFile(pathId, fileId))
-            processTroveTests(test_suite, name, version, flavor,
-                configuration, test_files, cover_files)
+                        cover_fobjs.append(getFile(pathId, fileId))
+            processTroveTests(test_suite, cover_data, name, version, flavor,
+                configuration, test_fobjs, cover_fobjs)
 
     test_suite.write_junit(open('test_results.xml', 'w'))
 
-    return test_suite.isSuccessful()
+    return test_suite.isSuccessful(), cover_data
 
 
-def processTroveTests(test_suite, name, version, flavor, configuration,
-  test_files, cover_files):
+def processTroveTests(test_suite, cover_data, name, version, flavor,
+  configuration, test_fobjs, cover_fobjs):
     '''
     Process tests for a single built trove.
     '''
@@ -248,5 +250,65 @@ def processTroveTests(test_suite, name, version, flavor, configuration,
     # XXX need a better parser (or format)
     configuration = hashabledict(eval(configuration))
 
-    for test_file in test_files:
-        test_suite.load_junit(test_file, configuration)
+    # Tests
+    for test_fobj in test_fobjs:
+        test_suite.load_junit(test_fobj, configuration)
+
+    # Coverage
+    for cover_fobj in cover_fobjs:
+        add_coverage(cover_data, cover_fobj)
+
+def add_coverage(cover_data, cover_fobj):
+    '''
+    Add the coverage data from one coverage blob to a "grand total"
+    dictionary.
+    '''
+
+    this_coverage = cPickle.load(cover_fobj)
+    for morf, (statements, missing) in this_coverage.iteritems():
+        if not cover_data.has_key(morf):
+            cover_data[morf] = [statements, set(missing)]
+        else:
+            cover_data[morf][1] &= set(missing)
+
+
+def coverage_report(cover_data, fileobj):
+    '''
+    Print a coverage report from the given coverage dictionary to the
+    given file object.
+    '''
+
+    # Print out a report
+    max_name = max([5,] + map(len, cover_data.keys()))
+    fmt_name = "%%- %ds  " % max_name
+    fmt_err = fmt_name + "%s: %s"
+    header = fmt_name % "Name" + " Stmts   Exec    Cover"
+    fmt_coverage = fmt_name + "% 6d % 6d % 7s%%"
+
+    total_statements = total_executed = 0
+
+    print >>fileobj, header
+    for morf in sorted(cover_data.keys()):
+        statements, missing = cover_data[morf]
+
+        num_statements = len(statements)
+        num_missing = len(missing)
+        num_executed = num_statements - num_missing
+        if num_statements > 0:
+            percent = 100.0 * num_executed / num_statements
+        else:
+            percent = 100.0
+        str_percent = '%-4.2f' % percent
+
+        print >>fileobj, fmt_coverage % (morf, num_statements,
+            num_executed, str_percent)
+
+        total_statements += num_statements
+        total_executed += num_executed
+
+    if total_statements > 0:
+        total_percent = 100.0 * total_executed / total_statements
+
+        print '-' * len(header)
+        print fmt_coverage % ('TOTAL', total_statements, total_executed,
+                              '%-4.2f' % total_percent)

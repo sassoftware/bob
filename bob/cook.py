@@ -268,7 +268,7 @@ class CookBob(object):
             return 3
 
         # Fetch test/coverage output
-        success = test.processTests(self, job)
+        success, cover_data = test.processTests(self, job)
         if not success:
             log.error('Some tests failed, aborting')
             return 4
@@ -309,6 +309,13 @@ class CookBob(object):
             flavor_list = set([x[2] for x in troves])
             for flavor in sorted(flavor_list):
                 log.info('  %s', str(flavor))
+
+        # Print coverage report
+        if cover_data:
+            test.coverage_report(cover_data, sys.stdout)
+
+        return 0
+
 
 def getPluginManager():
     cfg = buildcfg.BuildConfiguration(True, ignoreErrors=True)
