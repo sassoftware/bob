@@ -289,8 +289,6 @@ class CookBob(object):
             log.error('Some tests failed, aborting')
             return 4
 
-        return 0
-
         # Commit to target repository
         if job.isCommitting():
             log.error('Job %d is already committing ' \
@@ -371,6 +369,9 @@ def main(args):
     bcfg.readFiles()
 
     bob = CookBob(bcfg, pluginmgr)
+    for cfg_file in ('/etc/bobrc', os.getenv('HOME', '/') + '/.bobrc'):
+        if os.path.exists(cfg_file):
+            bob.cfg.read(cfg_file)
     bob.readPlan(plan)
     return bob.run()
 
