@@ -115,6 +115,7 @@ def wiki_summary((covered, (total_statements, total_executed)), cfg):
     print >>page, '| %s || %d || %d || %.02f%% || %s' % (
         cfg.product, total_statements, total_executed,
         percent, time.strftime('%m/%d'))
+    page.close()
 
     log.info('Coverage summary written to mediawiki at %s under %s',
         cfg.root, wiki_path)
