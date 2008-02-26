@@ -93,6 +93,7 @@ def wiki_summary((covered, (total_statements, total_executed)), cfg):
     if not os.path.isdir(cfg.root):
         log.warning('Wiki root %s does not exist; skipping wiki output.',
             cfg.root)
+        return
 
     # Create the subdir if needed
     subdir = os.path.join(cfg.root, cfg.subdir)
