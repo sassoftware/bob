@@ -83,6 +83,10 @@ def clone_job(parent, job):
 
         # Add binary troves to mapping
         for bin_name, bin_version, bin_flavor in trove.iterBuiltTroves():
+            # Don't commit test info
+            if bin_name.endswith(':testinfo'):
+                continue
+
             nbf = bin_name, target_branch, bin_flavor
             # Let's be lazy and not implement code that really does not
             # apply to this specific use case.
