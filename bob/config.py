@@ -12,10 +12,26 @@ from conary.versions import Label
 from rmake.build.buildcfg import CfgTroveSpec
 
 class BobTargetSection(cfg.ConfigSection):
+    '''
+    Target trove configuration:
+    [target:tmpwatch]
+    flavor_set plain
+    '''
+
     hg                      = CfgString
     flavor_set              = CfgString
     flavor                  = CfgList(CfgFlavor)
     version                 = CfgString
+
+class BobWikiSection(cfg.ConfigSection):
+    '''
+    Configuration for writing coverage reports to mediawiki
+    (single section)
+    '''
+    root                    = CfgString
+    subdir                  = CfgString
+    page                    = CfgString
+    product                 = CfgString
 
 class BobConfig(cfg.SectionedConfigFile):
     targetLabel             = (CfgLabel, Label('bob3.rb.rpath.com@rpl:1'))
@@ -35,12 +51,16 @@ class BobConfig(cfg.SectionedConfigFile):
     commitMessage           = (CfgString, 'Automated clone by bob3')
 
     # custom handling of sections
-    _sectionMap = {'target': BobTargetSection}
+    _sectionMap = {'target': BobTargetSection, 'wiki': BobWikiSection}
 
     def setSection(self, sectionName):
-        for name, typeobj in self._sectionMap.iteritems():
-            if sectionName.startswith(name + ':'):
-                self._addSection(sectionName, typeobj(self))
-                self._sectionName = sectionName
-                return self._sections[sectionName]
-        raise ParseError('Unknown section "%s"' % sectionName)
+        if not self.hasSection(sectionName):
+            found = False
+            for name, cls in self._sectionMap.iteritems():
+                if sectionName == name or sectionName.startswith(name + ':'):
+                    found = True
+                    self._addSection(sectionName, cls(self))
+            if not found:
+                raise ParseError('Unknown section "%s"' % sectionName)
+        self._sectionName = sectionName
+        return self._sections[sectionName]

@@ -29,6 +29,7 @@ from rmake.server import client
 
 from bob import commit
 from bob import config
+from bob import coverage
 from bob import flavors
 from bob import hg
 from bob import mangle
@@ -86,11 +87,11 @@ class CookBob(object):
             self.cfg.read(plan)
 
         for name, section in self.cfg._sections.iteritems():
+            if not ':' in section:
+                continue
             sectype, name = name.split(':', 1)
             if sectype == 'target':
                 self.targets[name] = section
-            elif sectype == 'test':
-                self.tests[name] = section
             else:
                 assert False
 
@@ -243,7 +244,7 @@ class CookBob(object):
         jobId = self.rc.buildJob(job)
         log.info('Job %d started', jobId)
 
-        ## Watch build (to stdout)
+        # Watch build (to stdout)
         self.pluginmgr.callClientHook('client_preCommand', DummyMain(),
             None, (self.buildcfg, self.buildcfg), None, None)
         self.pluginmgr.callClientHook('client_preCommand2', DummyMain(),
@@ -251,7 +252,7 @@ class CookBob(object):
         monitor.monitorJob(self.helper.client, jobId, exitOnFinish=True,
             displayClass=StatusOnlyDisplay)
 
-        ## Check for error condition
+        # Check for error condition
         job = self.rc.getJob(jobId, withConfigs=True)
         if job.isFailed():
             log.error('Job %d failed', jobId)
@@ -264,10 +265,31 @@ class CookBob(object):
             return 3
 
         # Fetch test/coverage output
-        success, cover_data = test.processTests(self, job)
-        if not success:
+        test_suite, cover_data = test.processTests(self, job)
+        if os.path.isdir('output'):
+            shutil.rmtree('output')
+
+        # Write test output
+        os.makedirs('output/tests')
+        if test_suite.tests:
+            test_suite.write_junit(open('output/tests/junit.xml', 'w'))
+
+        # Write coverage data and print report
+        os.makedirs('output/coverage')
+        if cover_data:
+            report = coverage.process(cover_data)
+            coverage.dump(cover_data, open('output/coverage/pickle', 'w'))
+            coverage.simple_report(report, sys.stdout)
+            if self.cfg.hasSection('wiki'):
+                wiki = self.cfg.getSection('wiki')
+                coverage.wiki_summary(report, wiki)
+
+        # Bail out without committing if tests failed
+        if not test_suite.isSuccessful():
             log.error('Some tests failed, aborting')
             return 4
+
+        return 0
 
         # Commit to target repository
         if job.isCommitting():
@@ -305,10 +327,6 @@ class CookBob(object):
             flavor_list = set([x[2] for x in troves])
             for flavor in sorted(flavor_list):
                 log.info('  %s', str(flavor))
-
-        # Print coverage report
-        if cover_data:
-            test.coverage_report(cover_data, sys.stdout)
 
         return 0
 
