@@ -87,7 +87,7 @@ class CookBob(object):
             self.cfg.read(plan)
 
         for name, section in self.cfg._sections.iteritems():
-            if not ':' in section:
+            if not ':' in name:
                 continue
             sectype, name = name.split(':', 1)
             if sectype == 'target':
@@ -134,6 +134,9 @@ class CookBob(object):
         # Determine the top-level trove specs to build
         troveSpecs = []
         for targetName in self.cfg.target:
+            if targetName not in self.targets:
+                raise RuntimeError('No target config section '
+                    'for trove "%s"' % targetName)
             targetCfg = self.targets[targetName]
             for flavor in flavors.expand_targets(targetCfg):
                 troveSpecs.append((targetName, self.cfg.sourceLabel, flavor))
