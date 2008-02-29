@@ -22,6 +22,7 @@ class BobTargetSection(cfg.ConfigSection):
     flavor_set              = CfgString
     flavor                  = CfgList(CfgFlavor)
     version                 = CfgString
+    siblingClone            = (CfgBool, False)
 
 class BobWikiSection(cfg.ConfigSection):
     '''

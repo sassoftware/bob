@@ -183,7 +183,8 @@ class CookBob(object):
             error=False)
 
         for name, version, flavor_list in self.groupTroveSpecs(troveSpecs):
-            name = name.split(':')[0] + ':source'
+            package = name.split(':')[0]
+            name = package + ':source'
             log.debug('Inspecting %s', name)
 
             # Resolve an exact version to build
@@ -194,7 +195,10 @@ class CookBob(object):
             if name in toBuild:
                 version = toBuild[name][0]
             else:
-                newTrove = mangle.mangleTrove(self, name, version)
+                siblingClone = package in self.targets and \
+                    self.targets[package].siblingClone
+                newTrove = mangle.mangleTrove(self, name, version,
+                    siblingClone=siblingClone)
                 version = newTrove[1]
             markForBuilding(name, version, flavor_list)
 
@@ -218,7 +222,11 @@ class CookBob(object):
                             # This source has not been mangled but it is on
                             # our configured source label, so it should be
                             # mangled.
-                            newTrove = mangle.mangleTrove(self, n, v)
+                            p = n.split(':')[0]
+                            siblingClone = p in self.targets and \
+                                self.targets[p].siblingClone
+                            newTrove = mangle.mangleTrove(self, n, v,
+                                siblingClone=siblingClone)
                             markForBuilding(n, newTrove[1], [merged_flavor])
                             log.debug('Adding %s=%s to build list', n, v)
                         elif n in toBuild and \

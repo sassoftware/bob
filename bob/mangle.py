@@ -23,6 +23,7 @@ from conary.build import cook
 from conary.deps import deps
 from conary.lib import log as conary_log
 from conary.lib import util
+from rmake import compat
 
 from bob import macro
 
@@ -32,6 +33,10 @@ log = logging.getLogger('bob.mangle')
 filters = []
 
 
+##
+## Decorators and helpers
+##
+
 def mangle(parent, trove, recipe):
     '''
     Feed the given recipe through all available filters.
@@ -40,20 +45,42 @@ def mangle(parent, trove, recipe):
         recipe = f(parent, trove, recipe)
     return recipe
 
+
 def _register(fun):
+    '''Decorator: Add the function as a mangler for all mangled recipes.'''
     filters.append(fun)
     return fun
 
 
+def _require_target_attribute(*target_attributes):
+    '''
+    Decorator: require that the given attributes be set on a target section
+    for the trove being mangled.
+    '''
+
+    def decorate(fun):
+        def wrapper(parent, trove, recipe):
+            if trove not in parent.targets:
+                return recipe
+            for attribute in target_attributes:
+                if not parent.targets[trove][attribute]:
+                    return recipe
+            return fun(parent, trove, recipe)
+        return wrapper
+    return decorate
+
+
+##
+## Manglers
+##
+
 re_version = re.compile('^(\s+)version\s*=.*?$', re.M)
 @_register
+@_require_target_attribute('version')
 def version(parent, trove, recipe):
     '''
     Update the recipe's version to reflect any configured pattern.
     '''
-
-    if not parent.targets.has_key(trove):
-        return recipe
 
     rawVersion = parent.targets[trove].version
     newVersion = macro.expand(rawVersion, parent, trove=trove)
@@ -63,15 +90,11 @@ def version(parent, trove, recipe):
 re_source = re.compile(
     r'''^(\s+)(\S+)\.addMercurialSnapshot\s*\(.*?\).*?$''', re.M | re.S)
 @_register
+@_require_target_attribute('hg')
 def source(parent, trove, recipe):
     '''
     Modify addMercurialSnapshot calls to use the selected revision.
     '''
-
-    if not parent.targets.has_key(trove):
-        return recipe
-    if not parent.targets[trove].hg:
-        return recipe
 
     repo = parent.targets[trove].hg
     if not parent.hg.has_key(repo):
@@ -83,7 +106,11 @@ def source(parent, trove, recipe):
         % (str(uri), str(node)), recipe)
 
 
-def mangleTrove(parent, name, version):
+##
+## Repository/commit code
+##
+
+def mangleTrove(parent, name, version, siblingClone=False):
     '''
     Check out a given source trove, mangle it, and commit it to a shadow on
     the internal repository.
@@ -122,20 +149,38 @@ def mangleTrove(parent, name, version):
         upstream_recipe = open(os.path.join(upstream_dir,
             '%s.recipe' % package)).read()
 
-        # Shadow to rMake's internal repos
-        log.debug('Shadowing %s to rMake repository', package)
-        targetLabel = parent.buildcfg.getTargetLabel(version)
-        skipped, cs = parent.cc.createShadowChangeSet(str(targetLabel),
-            [(sourceName, sourceVersion, deps.parseFlavor(''))])
-        if not skipped:
-            cook.signAbsoluteChangeset(cs, None)
+        # Shadow or clone to rMake's internal repos
+        target_label = parent.buildcfg.getTargetLabel(version)
+        cs = None
+        if not siblingClone:
+            # Shadow
+            log.debug('Shadowing %s to rMake repository', package)
+            skipped, cs = parent.cc.createShadowChangeSet(str(target_label),
+                [(sourceName, sourceVersion, deps.parseFlavor(''))])
+            downstream_branch = sourceVersion.createShadow(
+                target_label).branch()
+        else:
+            # Sibling clone (for derived packages)
+            log.debug('Sibling cloning %s to rMake repository', package)
+            source_branch = sourceVersion.branch()
+            if not source_branch.hasParentBranch():
+                raise RuntimeError('Cannot use siblingClone on source '
+                    'troves that are not shadows')
+            downstream_branch = source_branch.parentBranch().createShadow(
+                target_label)
+
+            okay, cs = parent.cc.createCloneChangeSet(downstream_branch,
+                [(sourceName, sourceVersion, deps.parseFlavor(''))])
+        if cs:
+            if compat.ConaryVersion().signAfterPromote():
+                cook.signAbsoluteChangeset(cs, None)
             parent.nc.commitChangeSet(cs)
 
         # Check out the shadow
-        log.debug('Checking out internal %s', sourceName)
-        shadowBranch = sourceVersion.createShadow(targetLabel).branch()
+        log.debug('Checking out internal source: %s=%s', sourceName,
+            downstream_branch)
         checkin.checkout(parent.nc, parent.buildcfg, work_dir,
-            ['%s=%s' % (sourceName, shadowBranch)])
+            ['%s=%s' % (sourceName, downstream_branch)])
         os.chdir(work_dir)
 
         # Compute the digest of the current downstream checkout
@@ -178,6 +223,7 @@ def mangleTrove(parent, name, version):
     log.debug('Mangling took %.03f seconds', _finish_time - _start_time)
 
     return newTrove
+
 
 def clone_checkout(source_dir, dest_dir):
     '''
@@ -222,6 +268,7 @@ def clone_checkout(source_dir, dest_dir):
             checkin.removeFile(path)
     finally:
         os.chdir(old_cwd)
+
 
 def digest_checkout(checkout):
     '''
