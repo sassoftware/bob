@@ -11,6 +11,7 @@ Tools for manipulating recipes and source troves.
 import logging
 import os
 import re
+import sha
 import shutil
 import tempfile
 import time
@@ -137,22 +138,30 @@ def mangleTrove(parent, name, version):
             ['%s=%s' % (sourceName, shadowBranch)])
         os.chdir(work_dir)
 
-        # Copy the upstream checkout into the shadow checkout
+        # Compute the digest of the current downstream checkout
+        old_digest = digest_checkout(work_dir)
+
+        # Copy the upstream checkout into the downstream checkout
         clone_checkout(upstream_dir, work_dir)
 
-        # Mangle the upstream recipe and commit it to the shadow
+        # Replace the downstream recipe with a mangled copy
         recipe = mangle(parent, package, upstream_recipe)
         open('%s.recipe' % package, 'w').write(recipe)
 
-        # Commit changes back to the internal repos
-        log.debug('Committing mangled %s', sourceName)
-        conary_log.resetErrorOccurred()
-        checkin.commit(parent.nc, parent.buildcfg,
-            parent.cfg.commitMessage, force=True)
-        if conary_log.errorOccurred():
-            raise RuntimeError()
+        # Commit changes back to the internal repos if changes were made
+        new_digest = digest_checkout(work_dir)
+        if old_digest != new_digest:
+            log.debug('Committing mangled %s', sourceName)
+            conary_log.resetErrorOccurred()
+            checkin.commit(parent.nc, parent.buildcfg,
+                parent.cfg.commitMessage, force=True)
+            if conary_log.errorOccurred():
+                raise RuntimeError()
+        else:
+            log.debug('Downstream checkout is up-to-date.')
 
-        # Figure out the new version and return
+        # Return the newly-created version (or the old version if nothing has
+        # changed).
         wd_state = state.ConaryStateFromFile('CONARY',
             parent.nc).getSourceState()
         newTrove = wd_state.getNameVersionFlavor()
@@ -213,3 +222,29 @@ def clone_checkout(source_dir, dest_dir):
             checkin.removeFile(path)
     finally:
         os.chdir(old_cwd)
+
+def digest_checkout(checkout):
+    '''
+    Compute the SHA-1 digest of everything in a checkout.
+    '''
+
+    digest = sha.new()
+    source_state = state.ConaryStateFromFile(os.path.join(checkout,
+        'CONARY'))
+    source_trove_state = source_state.getSourceState()
+
+    for path_id, path, file_id, file_ver in source_trove_state.iterFileList():
+        file_info = source_trove_state.fileInfo[path_id]
+        if file_info.isAutoSource:
+            continue
+
+        fobj = open(os.path.join(checkout, path))
+        buf = fobj.read(16384)
+        while buf:
+            digest.update(buf)
+            buf = fobj.read(16384)
+        fobj.close()
+
+        digest.update(str(file_info.isConfig))
+
+    return digest.digest()

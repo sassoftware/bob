@@ -38,7 +38,7 @@ class BobConfig(cfg.SectionedConfigFile):
 
     # source
     sourceLabel             = CfgLabel
-    macro                   = CfgDict(CfgString)
+    macros                   = CfgDict(CfgString)
     resolveTroves           = CfgList(CfgQuotedLineList(CfgTroveSpec))
     hg                      = CfgDict(CfgString)
 
