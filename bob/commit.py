@@ -8,11 +8,16 @@
 Mechanism for committing bobs to a configured target repository.
 '''
 
+import logging
+
 from conary.build import cook
 from conary.conaryclient import callbacks
 from conary.deps import deps
 from conary.trove import Trove
 from rmake import compat
+
+log = logging.getLogger('bob.commit')
+
 
 def commit(parent, job):
     '''
@@ -58,7 +63,12 @@ def clone_job(parent, job):
     '''
 
     branch_map = {} # source_branch -> target_branch
-    nbf_map = {} # name, target_branch, flavor -> trove, source_version
+
+    # nbf_map := name, target_branch, flavor -> trove, source_version
+    # This maps a given name and built flavor back to the BuildTrove that
+    # created it, allowing us to find duplicate builds and build a clone
+    # job.
+    nbf_map = {}
 
     for trove in job.iterTroves():
         source_name, source_version, _ = trove.getNameVersionFlavor()
@@ -88,9 +98,35 @@ def clone_job(parent, job):
                 continue
 
             nbf = bin_name, target_branch, bin_flavor
-            # Let's be lazy and not implement code that really does not
-            # apply to this specific use case.
-            assert nbf not in nbf_map, "This probably should not happen"
+            if nbf in nbf_map:
+                # Eliminate duplicate commits of the same NBF by keeping
+                # only the newer package
+                other_version = nbf_map[nbf][0].getBinaryTroves()[0][1]
+                if other_version < bin_version:
+                    bad_trove, new_trove = nbf_map[nbf][0], trove
+                    new_version = bin_version
+                else:
+                    new_trove, bad_trove = nbf_map[nbf][0], trove
+                    new_version = other_version
+                new_name = new_trove.getName().split(':')[0]
+
+                # Delete commit maps for the entire rejected package
+                for bad_name, bad_version, bad_flavor \
+                  in bad_trove.iterBuiltTroves():
+                    bad_nbf = (bad_name, target_branch, bad_flavor)
+                    if not ':' in bad_name:
+                        log.warning('Not committing %s=%s[%s] - overridden '
+                            'by %s=%s', bad_name, bad_version, bad_flavor,
+                            new_name, new_version)
+                    if bad_nbf in nbf_map \
+                      and bad_trove is nbf_map[bad_nbf][0]:
+                        log.debug('Purging %s=%s[%s]' % (bad_name, bad_version, bad_flavor))
+                        del nbf_map[bad_nbf]
+
+                # If this trove is the bad trove, stop processing it
+                if trove is bad_trove:
+                    break
+
             nbf_map[nbf] = trove, bin_version
 
     # Determine what to clone
