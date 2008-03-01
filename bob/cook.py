@@ -123,12 +123,15 @@ class CookBob(object):
         log.info('Creating build job')
 
         # Pre-build configuration
-        self.buildcfg.buildLabel = self.cfg.sourceLabel # XXX should this be the target?
+        self.buildcfg.buildLabel = self.cfg.targetLabel
+        for x in ('resolveTroves', 'shortenGroupFlavors'):
+            self.buildcfg[x] = self.cfg[x]
+        self.buildcfg.resolveTroves = self.cfg.resolveTroves
         self.buildcfg.installLabelPath = [self.cfg.sourceLabel] + \
             self.cfg.installLabelPath
-        self.buildcfg.resolveTroves = self.cfg.resolveTroves
         self.buildcfg.resolveTroveTups = buildcmd._getResolveTroveTups(
             self.buildcfg, self.nc)
+        self.buildcfg.macros.update(self.cfg.macros)
         self.buildcfg.initializeFlavors()
 
         # Determine the top-level trove specs to build
