@@ -21,8 +21,9 @@ class BobTargetSection(cfg.ConfigSection):
     hg                      = CfgString
     flavor_set              = CfgString
     flavor                  = CfgList(CfgFlavor)
-    version                 = CfgString
+    macros                  = CfgDict(CfgString)
     siblingClone            = (CfgBool, False)
+    version                 = CfgString
 
 class BobWikiSection(cfg.ConfigSection):
     '''
@@ -39,7 +40,7 @@ class BobConfig(cfg.SectionedConfigFile):
 
     # source
     sourceLabel             = CfgLabel
-    macros                   = CfgDict(CfgString)
+    macros                  = CfgDict(CfgString)
     resolveTroves           = CfgList(CfgQuotedLineList(CfgTroveSpec))
     hg                      = CfgDict(CfgString)
 

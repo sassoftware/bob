@@ -16,6 +16,7 @@ from conary import conaryclient
 from conary import versions
 from conary.build import grouprecipe
 from conary.build import use
+from conary.build.macros import Macros
 from conary.deps import deps
 from rmake import plugins
 from rmake.build import buildcfg
@@ -77,7 +78,7 @@ class CookBob(object):
         self.helper = helper.rMakeHelper(buildConfig=self.buildcfg)
 
         # temporary stuff
-        self.flavorContexts = {}
+        self.flavorContexts = set()
 
     def readPlan(self, plan):
         log.debug('Fetching plan %s', plan)
@@ -95,17 +96,19 @@ class CookBob(object):
             else:
                 assert False
 
-    def makeContext(self, build_flavor, search_flavors):
+    def makeContext(self, build_flavor, search_flavors, macros):
         '''
         Create a context in the local buildcfg out of the specified build
-        and search flavors.
+        and search flavors, and macros.
         '''
 
-        # Calculate a unique context name based on the specified flavors.
+        # Calculate a unique context name based on the specified settings
         ctx = md5.new()
         ctx.update(build_flavor.freeze())
         for search_flavor in search_flavors:
             ctx.update(search_flavor.freeze())
+        for key in sorted(macros.keys()):
+            ctx.update(key + macros[key])
         name = ctx.hexdigest()[:12]
 
         # Add a context if necessary and return the context name.
@@ -113,6 +116,8 @@ class CookBob(object):
             context = self.buildcfg.setSection(name)
             context['buildFlavor'] = build_flavor
             context['flavor'] = search_flavors
+            context['macros'] = macros
+            self.flavorContexts.add(name)
 
         return name
 
@@ -131,8 +136,12 @@ class CookBob(object):
             self.cfg.installLabelPath
         self.buildcfg.resolveTroveTups = buildcmd._getResolveTroveTups(
             self.buildcfg, self.nc)
-        self.buildcfg.macros.update(self.cfg.macros)
         self.buildcfg.initializeFlavors()
+
+        _macros = Macros(self.cfg.macros)
+        for key, value in self.cfg.macros.iteritems():
+            if key not in ('version', ):
+                self.buildcfg.macros[key] = value % _macros
 
         # Determine the top-level trove specs to build
         troveSpecs = []
@@ -141,8 +150,8 @@ class CookBob(object):
                 raise RuntimeError('No target config section '
                     'for trove "%s"' % targetName)
             targetCfg = self.targets[targetName]
-            for flavor in flavors.expand_targets(targetCfg):
-                troveSpecs.append((targetName, self.cfg.sourceLabel, flavor))
+            troveSpecs.append((targetName, self.cfg.sourceLabel,
+                set(flavors.expand_targets(targetCfg))))
 
         # Determine which troves to build
         troveList = self.getMangledTroves(troveSpecs)
@@ -150,8 +159,15 @@ class CookBob(object):
         # Create contexts for all required build configurations
         troves_with_contexts = []
         for name, version, flavor in troveList:
+            package = name.split(':')[0]
             search_flavors = flavors.guess_search_flavors(flavor)
-            context = self.makeContext(flavor, search_flavors)
+
+            macros = {}
+            if package in self.targets:
+                for key, value in self.targets[package].macros.iteritems():
+                    macros[key] = value % _macros
+
+            context = self.makeContext(flavor, search_flavors, macros)
             troves_with_contexts.append((name, version, flavor, context))
 
         # Create rMake job
@@ -159,13 +175,6 @@ class CookBob(object):
             buildConfig=self.buildcfg)
 
         return job
-
-    def groupTroveSpecs(self, troveList):
-        troveSpecs = {}
-        for n, v, f in troveList:
-            troveSpecs.setdefault((n, v), []).append(f)
-        return [(name, version, flavor_list)
-            for (name, version), flavor_list in troveSpecs.iteritems()]
 
     def getMangledTroves(self, troveSpecs):
         '''
@@ -185,7 +194,7 @@ class CookBob(object):
         use.setBuildFlagsFromFlavor(None, self.buildcfg.buildFlavor,
             error=False)
 
-        for name, version, flavor_list in self.groupTroveSpecs(troveSpecs):
+        for name, version, flavor_list in troveSpecs:
             package = name.split(':')[0]
             name = package + ':source'
             log.debug('Inspecting %s', name)
