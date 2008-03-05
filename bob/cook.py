@@ -15,7 +15,6 @@ import tempfile
 from conary import conaryclient
 from conary import versions
 from conary.build import grouprecipe
-from conary.build import use
 from conary.build.macros import Macros
 from conary.deps import deps
 from rmake import plugins
@@ -35,6 +34,7 @@ from bob import flavors
 from bob import hg
 from bob import mangle
 from bob import test
+from bob import util
 
 log = logging.getLogger('bob.cook')
 
@@ -121,6 +121,30 @@ class CookBob(object):
 
         return name
 
+    def recurse_group(self, local_repos, name, version, flavor, recipe_file):
+        '''
+        Given a group NVF and its recipe file, determine what troves in
+        that group could be built and which flavors of it are useful.
+        '''
+
+        loader, recipe_obj, relevant_flavor = recipeutil.loadRecipe(
+            self.nc, name, version, flavor,
+            installLabelPath=self.buildcfg.installLabelPath,
+            buildLabel=self.cfg.sourceLabel, recipeFile=(recipe_file, None),
+            cfg=self.buildcfg)
+
+        added_tups = []
+        for n, v, f in grouprecipe.findSourcesForGroup(
+          local_repos, recipe_obj):
+            if f is None:
+                f = deps.Flavor()
+
+            if v.trailingLabel() == self.cfg.sourceLabel:
+                build_flavor = deps.overrideFlavor(flavor, f)
+                added_tups.append((n, v, build_flavor))
+
+        return added_tups
+
     def getJob(self):
         '''
         Create a rMake build job given the configured target parameters.
@@ -185,14 +209,35 @@ class CookBob(object):
 
         # Key is name. value is (version, set(flavors)).
         toBuild = {}
+
+        # Key is name, value is the path to the (mangled) recipe.
+        recipes = {}
+
+        # Helpers for adding troves to build list
         def markForBuilding(name, version, flavor_list):
             toBuild.setdefault(name, (version, set()))[1].update(flavor_list)
+        def mangle_maybe(n, v, f):
+            if n not in toBuild:
+                # This trove is not in the build list yet so it
+                # hasn't been mangled.
+                p = n.split(':')[0]
+                siblingClone = p in self.targets and \
+                    self.targets[p].siblingClone
+                newTrove, recipe_file = mangle.mangleTrove(self, n, v,
+                    siblingClone=siblingClone, save_recipe=n not in recipes)
+                assert (n in recipes) ^ (recipe_file is not None)
+                if recipe_file:
+                    recipes[n] = recipe_file
+                markForBuilding(n, newTrove[1], [f])
+                log.debug('Adding %s=%s to build list', n, v)
+            elif n in toBuild and f not in toBuild[n][1]:
+                # This source has been mangled but the
+                # particular flavor requested is not in the build
+                # list yet.
+                markForBuilding(n, None, [f])
 
-        self.buildcfg.buildTroveSpecs = []
         localRepos = recipeutil.RemoveHostRepos(self.nc,
             self.buildcfg.reposName)
-        use.setBuildFlagsFromFlavor(None, self.buildcfg.buildFlavor,
-            error=False)
 
         for name, version, flavor_list in troveSpecs:
             package = name.split(':')[0]
@@ -209,44 +254,35 @@ class CookBob(object):
             else:
                 siblingClone = package in self.targets and \
                     self.targets[package].siblingClone
-                newTrove = mangle.mangleTrove(self, name, version,
-                    siblingClone=siblingClone)
+                newTrove, recipe_file = mangle.mangleTrove(self, name,
+                    version, siblingClone=siblingClone,
+                    save_recipe=name not in recipes)
                 version = newTrove[1]
+                assert (name in recipes) ^ (recipe_file is not None)
+                if recipe_file:
+                    recipes[name] = recipe_file
             markForBuilding(name, version, flavor_list)
 
             # Find all troves included if this is a group.
             if name.startswith('group-'):
                 log.debug('Following %s', name)
+
+                # Fetch the recipe first so that loadRecipe doesn't repeatedly
+                # have to get it from the repository.
+                if name in recipes:
+                    recipe_file = recipes[name]
+                else:
+                    recipe_file = util.fetch_recipe(self.nc, name, version)
+
                 for flavor in flavor_list:
-                    loader, recipeObj, relevantFlavor = \
-                        recipeutil.loadRecipe(self.nc, name, version,
-                            flavor, defaultFlavor=self.buildcfg.buildFlavor,
-                            installLabelPath=self.buildcfg.installLabelPath,
-                            buildLabel=self.cfg.sourceLabel,
-                            cfg=self.buildcfg)
-                    for n, v, f in grouprecipe.findSourcesForGroup(
-                      localRepos, recipeObj):
-                        if f is None:
-                            f = deps.parseFlavor('')
-                        merged_flavor = deps.overrideFlavor(flavor, f)
-                        if n not in toBuild and \
-                          v.trailingLabel() == self.cfg.sourceLabel:
-                            # This source has not been mangled but it is on
-                            # our configured source label, so it should be
-                            # mangled.
-                            p = n.split(':')[0]
-                            siblingClone = p in self.targets and \
-                                self.targets[p].siblingClone
-                            newTrove = mangle.mangleTrove(self, n, v,
-                                siblingClone=siblingClone)
-                            markForBuilding(n, newTrove[1], [merged_flavor])
-                            log.debug('Adding %s=%s to build list', n, v)
-                        elif n in toBuild and \
-                          merged_flavor not in toBuild[n][1]:
-                            # This source has been mangled but the
-                            # particular flavor requested is not in the build
-                            # list yet.
-                            markForBuilding(n, None, [merged_flavor])
+                    new_tups = self.recurse_group(localRepos,
+                        name, version, flavor, recipe_file)
+
+                    for n, v, f in new_tups:
+                        mangle_maybe(n, v, f)
+
+        for recipe_file in recipes.values():
+            os.unlink(recipe_file)
 
         buildTups = []
         for name, (version, flavor_list) in toBuild.iteritems():

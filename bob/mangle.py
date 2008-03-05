@@ -20,6 +20,7 @@ from conary import checkin
 from conary import state
 from conary import versions
 from conary.build import cook
+from conary.build import use
 from conary.deps import deps
 from conary.lib import log as conary_log
 from conary.lib import util
@@ -110,7 +111,7 @@ def source(parent, trove, recipe):
 ## Repository/commit code
 ##
 
-def mangleTrove(parent, name, version, siblingClone=False):
+def mangleTrove(parent, name, version, siblingClone=False, save_recipe=False):
     '''
     Check out a given source trove, mangle it, and commit it to a shadow on
     the internal repository.
@@ -198,6 +199,8 @@ def mangleTrove(parent, name, version, siblingClone=False):
         if old_digest != new_digest:
             log.debug('Committing mangled %s', sourceName)
             conary_log.resetErrorOccurred()
+            use.setBuildFlagsFromFlavor(package, parent.buildcfg.buildFlavor,
+                error=False)
             checkin.commit(parent.nc, parent.buildcfg,
                 parent.cfg.commitMessage, force=True)
             if conary_log.errorOccurred():
@@ -218,11 +221,20 @@ def mangleTrove(parent, name, version, siblingClone=False):
         shutil.rmtree(work_dir)
         shutil.rmtree(upstream_dir)
 
+    # Save a copy of the mangled recipe for recursion purposes
+    if save_recipe:
+        (fd, recipe_file) = tempfile.mkstemp('.recipe',
+            dir=parent.buildcfg.tmpDir)
+        os.write(fd, recipe)
+        os.close(fd)
+    else:
+        recipe_file = None
+
     _finish_time = time.time()
     log.debug('Committed %s=%s', newTrove[0], newTrove[1])
     log.debug('Mangling took %.03f seconds', _finish_time - _start_time)
 
-    return newTrove
+    return newTrove, recipe_file
 
 
 def clone_checkout(source_dir, dest_dir):
