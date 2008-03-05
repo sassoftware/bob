@@ -153,7 +153,7 @@ class CookBob(object):
 
         # Pre-build configuration
         self.buildcfg.buildLabel = self.cfg.targetLabel
-        for x in ('resolveTroves', 'shortenGroupFlavors'):
+        for x in ('resolveTroves', 'shortenGroupFlavors', 'matchTroveRule'):
             self.buildcfg[x] = self.cfg[x]
         self.buildcfg.resolveTroves = self.cfg.resolveTroves
         self.buildcfg.installLabelPath = [self.cfg.sourceLabel] + \
@@ -265,6 +265,13 @@ class CookBob(object):
 
             # Find all troves included if this is a group.
             if name.startswith('group-'):
+                if not buildcmd._filterListByMatchSpecs(
+                  self.buildcfg.reposName, self.cfg.recurseTroveRule,
+                  [(name, version, None)]):
+                    log.debug('Not following %s due to resolveTroveRule',
+                        package)
+                    continue
+
                 log.debug('Following %s', name)
 
                 # Fetch the recipe first so that loadRecipe doesn't repeatedly

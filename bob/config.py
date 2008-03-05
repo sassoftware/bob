@@ -46,6 +46,8 @@ class BobConfig(cfg.SectionedConfigFile):
 
     # build
     installLabelPath        = CfgInstallLabelPath
+    matchTroveRule          = CfgList(CfgString)
+    recurseTroveRule        = CfgList(CfgString)
     shortenGroupFlavors     = (CfgBool, True)
     target                  = CfgList(CfgString)
 
