@@ -33,6 +33,9 @@ TEST_FAIL   = 1
 TEST_ERROR  = 2
 
 
+class TestParseError(Exception): pass
+
+
 class TestCase(object):
     def __init__(self, name):
         self.name = name
@@ -104,6 +107,12 @@ class TestCase(object):
 
         failing_configurations = self.failing_configurations()
 
+        # De-indent the leading traceback chunk by 2 spaces
+        if last_lines[-3].startswith('  ') \
+          and last_lines[-2].startswith('  '):
+            last_lines[-3] = last_lines[-3][2:]
+            last_lines[-2] = last_lines[-2][2:]
+
         output = '\n'.join(last_lines[-3:]) + '\n'
         output += self.failing_configurations() + '\n'
 
@@ -137,6 +146,7 @@ class TestCase(object):
             print >>fileobj, '</%s>' % tag_names[self.status]
             print >>fileobj, '</testcase>'
 
+
 class TestSuite(object):
     def __init__(self):
         self.tests = {}
@@ -157,7 +167,12 @@ class TestSuite(object):
         '''
         Load test data from a JUnit-style XML file.
         '''
-        document = xml.dom.minidom.parse(fileobj)
+
+        try:
+            document = xml.dom.minidom.parse(fileobj)
+        except Exception, e:
+            raise TestParseError(str(e))
+
         for test in document.childNodes[0].childNodes:
             if not isinstance(test, xml.dom.minidom.Element):
                 continue
@@ -173,7 +188,7 @@ class TestSuite(object):
                 status = TEST_ERROR
                 message = test.childNodes[1].childNodes[1].data
             elif test.getElementsByTagName('failure'):
-                status = TEST_FAILURE
+                status = TEST_FAIL
                 message = test.childNodes[1].childNodes[1].data
             else:
                 status = TEST_OK
@@ -193,6 +208,12 @@ class TestSuite(object):
     def isSuccessful(self):
         return self.status <= TEST_OK
 
+    def mark_failed(self):
+        '''
+        Mark the testsuite as failed due to a condition not fully described
+        by the tests loaded; e.g. that one piece of test output was invalid.
+        '''
+        self.status = TEST_ERROR
 
 def processTests(parent_bob, job):
     '''
@@ -251,7 +272,12 @@ def processTroveTests(test_suite, cover_data, name, version, flavor,
 
     # Tests
     for test_fobj in test_fobjs:
-        test_suite.load_junit(test_fobj, configuration)
+        try:
+            test_suite.load_junit(test_fobj, configuration)
+        except TestParseError, e:
+            log.error('Test parse error in %s=%s[%s]: %s',
+                name, version, flavor, str(e))
+            test_suite.mark_failed()
 
     # Coverage
     for cover_fobj in cover_fobjs:
