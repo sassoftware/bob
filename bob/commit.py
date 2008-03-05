@@ -9,6 +9,7 @@ Mechanism for committing bobs to a configured target repository.
 '''
 
 import logging
+import time
 
 from conary.build import cook
 from conary.conaryclient import callbacks
@@ -25,6 +26,8 @@ def commit(parent, job):
 
     @param job: rMake job
     '''
+    log.info('Starting commit')
+    _start_time = time.time()
 
     okay, changeset, nbf_map = clone_job(parent, job)
 
@@ -54,6 +57,9 @@ def commit(parent, job):
     if compat.ConaryVersion().signAfterPromote():
         changeset = cook.signAbsoluteChangeset(changeset)
     parent.nc.commitChangeSet(changeset)
+
+    _finish_time = time.time()
+    log.info('Commit took %.03f seconds', _finish_time - _start_time)
     return mapping
 
 def clone_job(parent, job):
