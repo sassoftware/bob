@@ -37,11 +37,13 @@ def commit(parent, job):
     if okay:
         for trove in iter_new_troves(changeset, parent.nc):
             # Make sure there are no references to the internal repos.
-            for _, child_version, _ in trove.iterTroveList(
+            for child_name, child_version, _ in trove.iterTroveList(
               strongRefs=True, weakRefs=True):
                 assert child_version.getHost() \
                     != parent.buildcfg.reposName, \
                     "Trove %s references repository" % trove
+                assert not child_name.endswith(':testinfo'), \
+                    "Trove %s references :testinfo component" % trove
 
             trove_name, trove_version, trove_flavor = \
                 trove.getNameVersionFlavor()
@@ -153,6 +155,7 @@ def clone_job(parent, job):
         cloneSources=False,
         trackClone=False,
         callback=callback,
+        cloneOnlyByDefaultTroves=True,
         fullRecurse=False)
     return okay, changeset, nbf_map
 
