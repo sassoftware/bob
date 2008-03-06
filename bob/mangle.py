@@ -151,7 +151,7 @@ def mangleTrove(parent, name, version, siblingClone=False, save_recipe=False):
             '%s.recipe' % package)).read()
 
         # Shadow or clone to rMake's internal repos
-        target_label = parent.buildcfg.getTargetLabel(version)
+        target_label = parent.buildcfg.getTargetLabel(parent.cfg.targetLabel)
         cs = None
         if not siblingClone:
             # Shadow
