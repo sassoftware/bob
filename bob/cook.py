@@ -306,9 +306,8 @@ class CookBob(object):
 
         self.rc.addRepositoryInfo(self.buildcfg)
 
-        #job = self.getJob()
-        #jobId = self.rc.buildJob(job)
-        jobId = 9576
+        job = self.getJob()
+        jobId = self.rc.buildJob(job)
         log.info('Job %d started', jobId)
 
         # Watch build (to stdout)
@@ -316,17 +315,17 @@ class CookBob(object):
             None, (self.buildcfg, self.buildcfg), None, None)
         self.pluginmgr.callClientHook('client_preCommand2', DummyMain(),
             self.helper, None)
-        #monitor.monitorJob(self.helper.client, jobId, exitOnFinish=True,
-        #    displayClass=StatusOnlyDisplay)
+        monitor.monitorJob(self.helper.client, jobId, exitOnFinish=True,
+            displayClass=StatusOnlyDisplay)
 
         # Check for error condition
         job = self.rc.getJob(jobId, withConfigs=True)
         if job.isFailed():
             log.error('Job %d failed', jobId)
             return 2
-        #elif not job.isFinished():
-        #    log.error('Job %d is not done, yet watch returned early!', jobId)
-        #    return 3
+        elif not job.isFinished():
+            log.error('Job %d is not done, yet watch returned early!', jobId)
+            return 3
         elif not list(job.iterBuiltTroves()):
             log.error('Job %d has no built troves', jobId)
             return 3
