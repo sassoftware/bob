@@ -31,6 +31,12 @@ TEST_NONE   = -1
 TEST_OK     = 0
 TEST_FAIL   = 1
 TEST_ERROR  = 2
+STATUSES = TEST_OK, TEST_FAIL, TEST_ERROR
+STATUS_NAMES = {TEST_NONE:  'unknown',
+                TEST_OK:    'passed',
+                TEST_FAIL:  'failed',
+                TEST_ERROR: 'errored',
+                }
 
 
 class TestParseError(Exception): pass
@@ -214,6 +220,27 @@ class TestSuite(object):
         by the tests loaded; e.g. that one piece of test output was invalid.
         '''
         self.status = TEST_ERROR
+
+    def describe(self):
+        '''
+        Return a short string describing the state of the testsuite.
+        '''
+
+        if not self.tests and self.status == TEST_NONE:
+            return 'Status: No tests found'
+
+        per_status = {}
+        for test in self.tests.itervalues():
+            status = test.status
+            per_status[status] = per_status.get(status, 0) + 1
+
+        ret = []
+        for status in STATUSES:
+            ret.append('%d %s' % (per_status.get(status, 0),
+                STATUS_NAMES[status]))
+
+        overall = 'Status: %s' % STATUS_NAMES[self.status].capitalize()
+        return overall + ' - ' + ', '.join(ret)
 
 def processTests(parent_bob, job):
     '''
