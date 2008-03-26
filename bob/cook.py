@@ -302,7 +302,11 @@ class CookBob(object):
     def run(self):
         # Get versions of all hg repositories
         for name, uri in self.cfg.hg.iteritems():
-            self.hg[name] = (uri, hg.get_tip(uri))
+            if ' ' in uri:
+                uri, revision = uri.split(' ', 1)
+            else:
+                revision = hg.get_tip(uri)
+            self.hg[name] = (uri, revision)
 
         self.rc.addRepositoryInfo(self.buildcfg)
 
