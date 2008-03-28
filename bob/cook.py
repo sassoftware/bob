@@ -153,6 +153,7 @@ class CookBob(object):
 
         # Pre-build configuration
         self.buildcfg.buildLabel = self.cfg.targetLabel
+        self.buildcfg.strictMode = True
         for x in ('resolveTroves', 'shortenGroupFlavors', 'matchTroveRule'):
             self.buildcfg[x] = self.cfg[x]
         self.buildcfg.resolveTroves = self.cfg.resolveTroves
