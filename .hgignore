@@ -1,3 +1,4 @@
 .*\.(pyc|pyo|o|so|orig|rej)$
 (^|/)\..*\.swp$
 ^[^/]+\.(bob|ccs)$
+^bob/version.py$

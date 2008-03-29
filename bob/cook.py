@@ -35,6 +35,7 @@ from bob import hg
 from bob import mangle
 from bob import test
 from bob import util
+from bob import version
 
 log = logging.getLogger('bob.cook')
 
@@ -429,6 +430,12 @@ def addRootLogger():
         conary_log.removeHandler(handler)
 
 def main(args):
+    rev = version.revision and ' (revision %s)' % version.revision or ''
+    print 'Bob the Builder version %s%s' % (version.version, rev)
+    print 'Copyright (c) 2008 rPath, Inc.'
+    print 'All rights reserved.'
+    print
+
     try:
         plan = args[0]
     except IndexError:
