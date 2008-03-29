@@ -20,7 +20,7 @@ clean:
 
 bob/version.py:
 	echo "version = '$(VERSION)'" >bob/version.py
-	@if [ -x /usr/bin/hg ] ; then \
+	@if [[ -x /usr/bin/hg && -d .hg ]] ; then \
 		rev=`hg id -i`; \
 	elif [ -f .hg_archival.txt ]; then \
 		rev=`grep node .hg_archival.txt |cut -d' ' -f 2 |head -c 12`; \
