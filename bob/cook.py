@@ -158,7 +158,6 @@ class CookBob(object):
         self.buildcfg.copyInConary = self.buildcfg.copyInConfig = False
         for x in ('resolveTroves', 'shortenGroupFlavors', 'matchTroveRule'):
             self.buildcfg[x] = self.cfg[x]
-        self.buildcfg.resolveTroves = self.cfg.resolveTroves
         self.buildcfg.installLabelPath = [self.cfg.sourceLabel] + \
             self.cfg.installLabelPath
         self.buildcfg.resolveTroveTups = buildcmd._getResolveTroveTups(
@@ -177,7 +176,8 @@ class CookBob(object):
                 raise RuntimeError('No target config section '
                     'for trove "%s"' % targetName)
             targetCfg = self.targets[targetName]
-            troveSpecs.append((targetName, self.cfg.sourceLabel,
+            srcLabel = targetCfg.sourceLabel or self.cfg.sourceLabel
+            troveSpecs.append((targetName, srcLabel,
                 set(flavors.expand_targets(targetCfg))))
 
         # Determine which troves to build

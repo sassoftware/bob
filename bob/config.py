@@ -24,6 +24,7 @@ class BobTargetSection(cfg.ConfigSection):
     macros                  = CfgDict(CfgString)
     siblingClone            = (CfgBool, False)
     version                 = CfgString
+    sourceLabel             = CfgLabel
 
 class BobWikiSection(cfg.ConfigSection):
     '''
