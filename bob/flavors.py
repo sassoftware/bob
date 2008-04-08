@@ -9,6 +9,8 @@ Defines default flavor sets and provides a mechanism for reading a config
 target and producing a list of build flavors for that trove.
 '''
 
+import re
+
 from conary.deps import arch
 from conary.deps import deps
 
@@ -52,6 +54,7 @@ def _make_set(prefix, distro='rPL 1', arches=None):
     return ret
 
 
+flavor_template_re = re.compile('%([^%:]+):([^%:]+)%')
 def expand_targets(cfg):
     '''
     Accept a target config section and return a list of build flavors.
@@ -66,7 +69,31 @@ def expand_targets(cfg):
             raise RuntimeError('flavor set "%s" is not defined'
                 % cfg.flavor_set)
     else:
-        return cfg.flavor
+        ret = []
+        for flavor in cfg.flavor:
+            if '%' in flavor:
+                # Handle "templates" in flavors, e.g.
+                # flavor %rPL 1:x86% xen,dom0,!domU,!vmware
+                match = flavor_template_re.search(flavor)
+                if not match:
+                    raise RuntimeError('Malformed template in flavor')
+
+                stripped_flavor = flavor_template_re.sub('', flavor)
+                if '%' in stripped_flavor:
+                    raise RuntimeError('Cannot have multiple templates '
+                        'in flavor')
+
+                distro, arch = match.groups()
+                distro = _DISTROS[distro]
+                arch_set = distro['arches'][arch]
+                base = deps.parseFlavor(arch_set['prefix'] + distro['base']
+                    + arch_set['suffix'])
+                suffix = deps.parseFlavor(stripped_flavor)
+                ret.append(deps.overrideFlavor(base, suffix))
+            else:
+                ret.append(deps.parseFlavor(flavor))
+
+        return ret
 
 
 def guess_search_flavors(flavor, distro='rPL 1'):

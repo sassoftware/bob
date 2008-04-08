@@ -21,7 +21,7 @@ class BobTargetSection(cfg.ConfigSection):
     hg                      = CfgString
     flavor_mask             = CfgFlavor
     flavor_set              = CfgString
-    flavor                  = CfgList(CfgFlavor)
+    flavor                  = CfgList(CfgString)
     macros                  = CfgDict(CfgString)
     siblingClone            = (CfgBool, False)
     version                 = CfgString
