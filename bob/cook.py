@@ -16,7 +16,7 @@ import time
 from conary import conaryclient
 from conary import versions
 from conary.build import grouprecipe
-from conary.build.macros import Macros
+from conary.build.macros import Macros, MacroKeyError
 from conary.deps import deps
 from rmake import plugins
 from rmake.build import buildcfg
@@ -169,8 +169,11 @@ class CookBob(object):
 
         _macros = Macros(self.cfg.macros)
         for key, value in self.cfg.macros.iteritems():
-            if key not in ('version', ):
+            try:
                 self.buildcfg.macros[key] = value % _macros
+            except MacroKeyError:
+                # Maybe requires a build-time macro
+                pass
 
         # Determine the top-level trove specs to build
         troveSpecs = []
