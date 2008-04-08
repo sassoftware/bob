@@ -11,6 +11,7 @@ import os
 import shutil
 import sys
 import tempfile
+import time
 
 from conary import conaryclient
 from conary import versions
@@ -80,6 +81,7 @@ class CookBob(object):
 
         # temporary stuff
         self.flavorContexts = set()
+        self.start_time = None
 
     def readPlan(self, plan):
         log.debug('Fetching plan %s', plan)
@@ -151,6 +153,7 @@ class CookBob(object):
         Create a rMake build job given the configured target parameters.
         '''
         log.info('Creating build job')
+        self.start_time = time.time()
 
         # Pre-build configuration
         self.buildcfg.buildLabel = self.cfg.targetLabel
@@ -182,6 +185,8 @@ class CookBob(object):
 
         # Determine which troves to build
         troveList = self.getMangledTroves(troveSpecs)
+        troveList = buildcmd._filterListByMatchSpecs(self.buildcfg.reposName,
+            self.cfg.matchTroveRule, troveList)
 
         # Create contexts for all required build configurations
         troves_with_contexts = []

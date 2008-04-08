@@ -9,6 +9,7 @@ Mechanism for expanding macros from a trove context.
 '''
 
 import logging
+import time
 
 from conary.build.macros import Macros
 
@@ -21,6 +22,8 @@ def expand(raw, parent, trove=None):
     macros.update(parent.cfg.macros)
     for cfg_item in ('targetLabel',):
         macros[cfg_item] = str(getattr(parent.cfg, cfg_item))
+    macros['start_time'] = time.strftime('%Y%m%d_%H%M%S', time.localtime(
+        parent.start_time))
 
     # Additional info available in trove contexts
     if trove:
