@@ -155,7 +155,7 @@ def clone_job(parent, job):
         cloneSources=False,
         trackClone=False,
         callback=callback,
-        cloneOnlyByDefaultTroves=True,
+        #cloneOnlyByDefaultTroves=True,
         fullRecurse=False)
     return okay, changeset, nbf_map
 
