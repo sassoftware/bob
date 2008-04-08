@@ -302,12 +302,23 @@ class CookBob(object):
         for recipe_file in recipes.values():
             os.unlink(recipe_file)
 
+        # Cull build flavors down to avoid duplication and explode into a
+        # list of trove tuples.
         buildTups = []
-        for name, (version, flavor_list) in toBuild.iteritems():
-            for flavor in flavor_list:
-                tup = (name, version, flavor)
-                buildTups.append(tup)
-                self.buildcfg.buildTroveSpecs.append(tup)
+        for name, (version, flavors_in) in toBuild.iteritems():
+            package = name.split(':')[0]
+            trove_cfg = self.targets.get(package, None)
+            flavors_out = flavors.reduce_flavors(package, trove_cfg,
+                flavors_in)
+
+            for flavor in flavors_out:
+                buildTups.append((name, version, flavor))
+
+            if len(flavors_in) != len(flavors_out):
+                log.debug('%s would be built %d times, but is now built '
+                    '%d times', name, len(flavors_in), len(flavors_out))
+            else:
+                log.debug('%s will be built in %d flavors', name, len(flavors_out))
         return buildTups
 
     def run(self):

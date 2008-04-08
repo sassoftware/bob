@@ -97,6 +97,89 @@ def guess_search_flavors(flavor, distro='rPL 1'):
 
     return ret
 
+
+def reduce_flavors(package, target_cfg, flavors_in):
+    '''
+    Reduce the set of flavors to be built for a given trove to specify
+    only:
+     * The instruction set
+     * Package use flags (for this package only)
+     * Flavors specified in a "use" config item for the package
+    '''
+
+    flavors_out = set()
+
+    if target_cfg and (target_cfg.flavor or target_cfg.flavor_set):
+        # An explicit set of flavors was provided. They should be used instead
+        # of whatever we were given.
+        flavors_out = expand_targets(target_cfg)
+    elif target_cfg and target_cfg.flavor_mask != deps.Flavor():
+        # A flavor mask was provided. Use this to select which flavors are
+        # unique, and build only variations on them.
+        flavors_out = set()
+        for flavor in flavors_in:
+            flavors_out.add(mask_flavor(flavor, target_cfg.flavor_mask))
+    elif package.startswith('group-'):
+        # With groups it's impossible to guess which flavors are useful; and
+        # usually we want them all anyway since groups are where the set of
+        # flavors to be built originate.
+        flavors_out = flavors_in
+    else:
+        # No rules were specified. Keep instruction set and package flags
+        # for this package only.
+        flavors_out = set()
+        for flavor in flavors_in:
+            flavors_out.add(fragment_flavor(package, flavor))
+
+    return flavors_out
+
+
+def mask_flavor(base_flavor, mask_flavor):
+    '''
+    Remove flags from I{base_flavor} not present in I{mask_flavor}. Sense of
+    flags in I{mask_flavor} is ignored.
+    '''
+
+    new_flavor = deps.Flavor()
+    for cls, mask_dep in mask_flavor.iterDeps():
+        base_class = base_flavor.members.get(cls.tag, None)
+        if base_class is None:
+            continue
+        base_dep = base_class.members.get(mask_dep.name, None)
+        if base_dep is None:
+            continue
+
+        new_flags = {}
+        for flag, sense in mask_dep.flags.iteritems():
+            if flag in base_dep.flags:
+                new_flags[flag] = base_dep.flags[flag]
+
+        new_flavor.addDep(cls, deps.Dependency(mask_dep.name, new_flags))
+
+    return new_flavor
+
+
+def fragment_flavor(package, flavor):
+    '''
+    Select instruction set and package flags from a flavor and return just
+    those parts.
+    '''
+
+    new_flavor = deps.Flavor()
+    for dep in flavor.iterDepsByClass(deps.InstructionSetDependency):
+        # Instruction set (e.g. arch)
+        new_flavor.addDep(deps.InstructionSetDependency, dep)
+    for dep in flavor.iterDepsByClass(deps.UseDependency):
+        new_flags = {}
+        for flag, sense in dep.flags.iteritems():
+            if flag.startswith(package + '.'):
+                new_flags[flag] = sense
+        new_flavor.addDep(deps.UseDependency,
+            deps.Dependency('use', new_flags))
+
+    return new_flavor
+
+
 # Flavor fragments used below in SETS
 _PLAIN = '!xen,!domU,!dom0,!vmware,'
 _DOMU = 'xen,domU,!dom0,!vmware,'
