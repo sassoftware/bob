@@ -42,8 +42,8 @@ def commit(parent, job):
                 assert child_version.getHost() \
                     != parent.buildcfg.reposName, \
                     "Trove %s references repository" % trove
-                assert not child_name.endswith(':testinfo'), \
-                    "Trove %s references :testinfo component" % trove
+                #assert not child_name.endswith(':testinfo'), \
+                #    "Trove %s references :testinfo component" % trove
 
             trove_name, trove_version, trove_flavor = \
                 trove.getNameVersionFlavor()
