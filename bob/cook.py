@@ -191,6 +191,16 @@ class CookBob(object):
         troveList = buildcmd._filterListByMatchSpecs(self.buildcfg.reposName,
             self.cfg.matchTroveRule, troveList)
 
+        # Check for unused target configs
+        building_troves = set(x[0].split(':')[0] for x in troveList)
+        configured_troves = set(self.targets)
+        unused_configs = configured_troves - building_troves
+        if unused_configs:
+            log.error('These target configs were unused '
+                '- remove or correct them:')
+            log.error(' '.join(unused_configs))
+            raise RuntimeError('Unused target configs')
+
         # Create contexts for all required build configurations
         troves_with_contexts = []
         for name, version, flavor in troveList:
