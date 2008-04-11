@@ -479,6 +479,9 @@ def main(args):
     bcfg = buildcfg.BuildConfiguration(True)
     bcfg.readFiles()
 
+    # Restore regular exception hook
+    sys.excepthook = sys.__excepthook__
+
     bob = CookBob(bcfg, pluginmgr)
     for cfg_file in ('/etc/bobrc', os.getenv('HOME', '/') + '/.bobrc'):
         if os.path.exists(cfg_file):
