@@ -1,4 +1,5 @@
 .*\.(pyc|pyo|o|so|orig|rej)$
 (^|/)\..*\.swp$
+^.(pydev)?project$
 ^[^/]+\.(bob|ccs)$
 ^bob/version.py$
