@@ -44,6 +44,7 @@ class BobConfig(cfg.SectionedConfigFile):
     sourceLabel             = CfgLabel
     macros                  = CfgDict(CfgString)
     resolveTroves           = CfgList(CfgQuotedLineList(CfgTroveSpec))
+    resolveTrovesOnly       = (CfgBool, False)
     hg                      = CfgDict(CfgString)
 
     # build

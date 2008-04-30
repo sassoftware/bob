@@ -159,7 +159,8 @@ class CookBob(object):
         self.buildcfg.buildLabel = self.cfg.targetLabel
         self.buildcfg.strictMode = True
         self.buildcfg.copyInConary = self.buildcfg.copyInConfig = False
-        for x in ('resolveTroves', 'shortenGroupFlavors', 'matchTroveRule'):
+        for x in ('resolveTroves', 'resolveTrovesOnly', 'shortenGroupFlavors',
+          'matchTroveRule'):
             self.buildcfg[x] = self.cfg[x]
         self.buildcfg.installLabelPath = [self.cfg.sourceLabel] + \
             self.cfg.installLabelPath
