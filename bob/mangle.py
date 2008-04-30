@@ -78,7 +78,7 @@ def _require_target_attribute(*target_attributes):
 re_version = re.compile('^(\s+)version\s*=.*?$', re.M)
 @_register
 @_require_target_attribute('version')
-def version(parent, trove, recipe):
+def mVersion(parent, trove, recipe):
     '''
     Update the recipe's version to reflect any configured pattern.
     '''
@@ -92,7 +92,7 @@ re_source = re.compile(
     r'''^(\s+)(\S+)\.addMercurialSnapshot\s*\(.*?\).*?$''', re.M | re.S)
 @_register
 @_require_target_attribute('hg')
-def source(parent, trove, recipe):
+def mSource(parent, trove, recipe):
     '''
     Modify addMercurialSnapshot calls to use the selected revision.
     '''
@@ -111,7 +111,7 @@ def source(parent, trove, recipe):
 ## Repository/commit code
 ##
 
-def mangleTrove(parent, name, version, siblingClone=False, save_recipe=False):
+def mangleTrove(parent, name, version, siblingClone=False):
     '''
     Check out a given source trove, mangle it, and commit it to a shadow on
     the internal repository.
@@ -221,20 +221,11 @@ def mangleTrove(parent, name, version, siblingClone=False, save_recipe=False):
         shutil.rmtree(work_dir)
         shutil.rmtree(upstream_dir)
 
-    # Save a copy of the mangled recipe for recursion purposes
-    if save_recipe:
-        (fd, recipe_file) = tempfile.mkstemp('.recipe',
-            dir=parent.buildcfg.tmpDir)
-        os.write(fd, recipe)
-        os.close(fd)
-    else:
-        recipe_file = None
-
     _finish_time = time.time()
     log.debug('Committed %s=%s', newTrove[0], newTrove[1])
     log.debug('Mangling took %.03f seconds', _finish_time - _start_time)
 
-    return newTrove, recipe_file
+    return newTrove
 
 
 def clone_checkout(source_dir, dest_dir):

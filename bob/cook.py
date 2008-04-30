@@ -4,24 +4,19 @@
 # All rights reserved.
 #
 
-import copy
 import logging
 import md5
 import os
 import shutil
 import sys
-import tempfile
 import time
 
 from conary import conaryclient
-from conary import versions
 from conary.build import grouprecipe
 from conary.build.macros import Macros, MacroKeyError
 from conary.deps import deps
 from rmake import plugins
 from rmake.build import buildcfg
-from rmake.build import buildjob
-from rmake.build import buildtrove
 from rmake.cmdline import buildcmd
 from rmake.cmdline import helper
 from rmake.cmdline import monitor
@@ -35,7 +30,6 @@ from bob import flavors
 from bob import hg
 from bob import mangle
 from bob import test
-from bob import util
 from bob import version
 
 log = logging.getLogger('bob.cook')
@@ -124,16 +118,16 @@ class CookBob(object):
 
         return name
 
-    def recurse_group(self, local_repos, name, version, flavor, recipe_file):
+    def recurse_group(self, local_repos, name, version, flavor, sourceTrove):
         '''
         Given a group NVF and its recipe file, determine what troves in
         that group could be built and which flavors of it are useful.
         '''
 
         loader, recipe_obj, relevant_flavor = recipeutil.loadRecipe(
-            self.nc, name, version, flavor,
+            self.nc, name, version, flavor, sourceTrove,
             installLabelPath=self.buildcfg.installLabelPath,
-            buildLabel=self.cfg.sourceLabel, recipeFile=(recipe_file, None),
+            buildLabel=self.cfg.sourceLabel,
             cfg=self.buildcfg)
 
         added_tups = []
@@ -232,9 +226,6 @@ class CookBob(object):
         # Key is name. value is (version, set(flavors)).
         toBuild = {}
 
-        # Key is name, value is the path to the (mangled) recipe.
-        recipes = {}
-
         # Helpers for adding troves to build list
         def markForBuilding(name, version, flavor_list):
             toBuild.setdefault(name, (version, set()))[1].update(flavor_list)
@@ -245,11 +236,8 @@ class CookBob(object):
                 p = n.split(':')[0]
                 siblingClone = p in self.targets and \
                     self.targets[p].siblingClone
-                newTrove, recipe_file = mangle.mangleTrove(self, n, v,
-                    siblingClone=siblingClone, save_recipe=n not in recipes)
-                assert (n in recipes) ^ (recipe_file is not None)
-                if recipe_file:
-                    recipes[n] = recipe_file
+                newTrove = mangle.mangleTrove(self, n, v,
+                    siblingClone=siblingClone)
                 markForBuilding(n, newTrove[1], [f])
                 log.debug('Adding %s=%s to build list', n, v)
             elif n in toBuild and f not in toBuild[n][1]:
@@ -276,13 +264,9 @@ class CookBob(object):
             else:
                 siblingClone = package in self.targets and \
                     self.targets[package].siblingClone
-                newTrove, recipe_file = mangle.mangleTrove(self, name,
-                    version, siblingClone=siblingClone,
-                    save_recipe=name not in recipes)
+                newTrove = mangle.mangleTrove(self, name,
+                    version, siblingClone=siblingClone)
                 version = newTrove[1]
-                assert (name in recipes) ^ (recipe_file is not None)
-                if recipe_file:
-                    recipes[name] = recipe_file
             markForBuilding(name, version, flavor_list)
 
             # Find all troves included if this is a group.
@@ -296,22 +280,13 @@ class CookBob(object):
 
                 log.debug('Following %s', name)
 
-                # Fetch the recipe first so that loadRecipe doesn't repeatedly
-                # have to get it from the repository.
-                if name in recipes:
-                    recipe_file = recipes[name]
-                else:
-                    recipe_file = util.fetch_recipe(self.nc, name, version)
-
+                sourceTrove = self.nc.getTrove(name, version, deps.Flavor())
                 for flavor in flavor_list:
                     new_tups = self.recurse_group(localRepos,
-                        name, version, flavor, recipe_file)
+                        name, version, flavor, sourceTrove)
 
                     for n, v, f in new_tups:
                         mangle_maybe(n, v, f)
-
-        for recipe_file in recipes.values():
-            os.unlink(recipe_file)
 
         # Cull build flavors down to avoid duplication and explode into a
         # list of trove tuples.
