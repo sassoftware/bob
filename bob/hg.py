@@ -9,7 +9,6 @@ Helper functions for dealing with mercurial (hg) repositories.
 '''
 
 import logging
-import os
 
 from mercurial import hg, ui
 from mercurial.node import short

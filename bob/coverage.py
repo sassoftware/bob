@@ -11,10 +11,7 @@ Module containing coverage processing and reports.
 import cPickle
 import logging
 import os
-import sys
 import time
-
-from bob.util import hashabledict
 
 log = logging.getLogger('bob.coverage')
 
@@ -141,3 +138,14 @@ def load(cover_data, fileobj):
             cover_data[morf] = [statements, set(missing)]
         else:
             cover_data[morf][1] &= set(missing)
+
+def merge(main, other):
+    '''
+    Merge coverage from I{other} into I{main}
+    '''
+
+    for morf, (statements, missing) in other.iteritems():
+        if morf in main:
+            main[morf][1] &= missing
+        else:
+            main[morf] = [statements, missing]

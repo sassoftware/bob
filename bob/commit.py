@@ -16,11 +16,22 @@ from conary.conaryclient import callbacks
 from conary.deps import deps
 from conary.trove import Trove
 from rmake import compat
+from rmake.cmdline.commit import commitJobs
+
+from bob.errors import CommitFailedError
 
 log = logging.getLogger('bob.commit')
 
 
-def commit(parent, job):
+def commit(helper, job):
+    ok, data = commitJobs(helper.getClient(), [job], helper.cfg.reposName,
+        message=helper.plan.commitMessage)
+    if ok:
+        return data
+    else:
+        raise CommitFailedError(jobId=job.jobId, why=data)
+
+def _old_commit(helper, job):
     '''
     Commit a job to the target repository.
 
@@ -29,18 +40,18 @@ def commit(parent, job):
     log.info('Starting commit')
     _start_time = time.time()
 
-    okay, changeset, nbf_map = clone_job(parent, job)
+    okay, changeset, nbf_map = clone_job(helper, job)
 
     # Sanity check the resulting changeset and produce a mapping of
     # committed versions
     mapping = {job.jobId: {}}
     if okay:
-        for trove in iter_new_troves(changeset, parent.nc):
+        for trove in iter_new_troves(changeset, helper):
             # Make sure there are no references to the internal repos.
-            for child_name, child_version, _ in trove.iterTroveList(
+            for _, child_version, _ in trove.iterTroveList(
               strongRefs=True, weakRefs=True):
                 assert child_version.getHost() \
-                    != parent.buildcfg.reposName, \
+                    != helper.cfg.reposName, \
                     "Trove %s references repository" % trove
                 #assert not child_name.endswith(':testinfo'), \
                 #    "Trove %s references :testinfo component" % trove
@@ -58,13 +69,13 @@ def commit(parent, job):
 
     if compat.ConaryVersion().signAfterPromote():
         changeset = cook.signAbsoluteChangeset(changeset)
-    parent.nc.commitChangeSet(changeset)
+    helper.getRepos().commitChangeSet(changeset)
 
     _finish_time = time.time()
     log.info('Commit took %.03f seconds', _finish_time - _start_time)
     return mapping
 
-def clone_job(parent, job):
+def clone_job(helper, job):
     '''
     Create a changeset that will clone all built troves into the target
     label.
@@ -80,12 +91,12 @@ def clone_job(parent, job):
 
     for trove in job.iterTroves():
         source_name, source_version, _ = trove.getNameVersionFlavor()
-        assert source_version.getHost() == parent.buildcfg.reposName
+        #assert source_version.getHost() == helper.cfg.reposName
 
         # Determine which branch this will be committed to
-        source_branch = source_version.branch()
-        origin_branch = source_branch.parentBranch()
-        target_branch = origin_branch.createShadow(parent.cfg.targetLabel)
+        import epdb;epdb.st()
+        source_branch = origin_branch = source_version.branch()
+        target_branch = origin_branch.createShadow(helper.plan.targetLabel)
 
         # Mark said branch for final promote
         branch_map[source_branch] = target_branch
@@ -128,7 +139,8 @@ def clone_job(parent, job):
                             new_name, new_version)
                     if bad_nbf in nbf_map \
                       and bad_trove is nbf_map[bad_nbf][0]:
-                        log.debug('Purging %s=%s[%s]' % (bad_name, bad_version, bad_flavor))
+                        log.debug('Purging %s=%s[%s]' % (bad_name, bad_version,
+                            bad_flavor))
                         del nbf_map[bad_nbf]
 
                 # If this trove is the bad trove, stop processing it
@@ -140,16 +152,16 @@ def clone_job(parent, job):
     # Determine what to clone
     troves_to_clone = []
 
-    for (trv_name, trv_branch, trv_flavor), (trove, trv_version) \
+    for (trv_name, _, trv_flavor), (trove, trv_version) \
       in nbf_map.iteritems():
         troves_to_clone.append((trv_name, trv_version, trv_flavor))
 
     # Do the clone
     update_build_info = compat.ConaryVersion()\
         .acceptsPartialBuildReqCloning()
-    callback = callbacks.CloneCallback(parent.buildcfg,
-        parent.cfg.commitMessage)
-    okay, changeset = parent.cc.createTargetedCloneChangeSet(
+    callback = callbacks.CloneCallback(helper.cfg,
+        helper.plan.commitMessage)
+    okay, changeset = helper.getClient().createTargetedCloneChangeSet(
         branch_map, troves_to_clone,
         updateBuildInfo=update_build_info,
         cloneSources=False,
@@ -159,7 +171,7 @@ def clone_job(parent, job):
         fullRecurse=False)
     return okay, changeset, nbf_map
 
-def iter_new_troves(changeset, nc):
+def iter_new_troves(changeset, helper):
     '''
     Take a changeset and yield trove objects corresponding to the new
     versions of all troves in that changeset. This involves fetching old
@@ -175,7 +187,7 @@ def iter_new_troves(changeset, nc):
     # Now fetch trove objects corresponding to old versions
     old_dict = {}
     if old_troves:
-        for old_trove in nc.getTroves(old_troves):
+        for old_trove in helper.getRepos().getTroves(old_troves):
             old_dict.setdefault(old_trove.getNameVersionFlavor(),
                                 []).append(old_trove)
 

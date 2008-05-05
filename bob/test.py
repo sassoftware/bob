@@ -8,14 +8,12 @@
 Module containing test-processing code.
 '''
 
-import cPickle
 import logging
 import re
-import sys
 import xml.dom.minidom
 
 from bob import coverage
-from bob.util import hashabledict
+from bob.util import HashableDict
 
 log = logging.getLogger('bob.test')
 
@@ -56,6 +54,18 @@ class TestCase(object):
                 'overwriting', self.name, configuration)
         self.runs[configuration] = run
         self.status = max(self.status, status)
+
+    def merge(self, other):
+        '''
+        Merge an existing TestCase into this one.
+        '''
+
+        for configuration, run in other.runs:
+            if configuration in self.runs:
+                log.warning('Test %s already has an entry for conf %r; '
+                    'overwriting (while merging)', self.name, configuration)
+            self.runs[configuration] = run
+            self.status = max(self.status, run['status'])
 
     def get_failing_runs(self):
         '''Return failing runs from this test case.'''
@@ -169,6 +179,18 @@ class TestSuite(object):
         test.add_run(status, duration, configuration, message)
         self.status = max(self.status, status)
 
+    def merge(self, other):
+        '''
+        Merge an existing TestSuite object into this one
+        '''
+
+        for name, case in other.tests.iteritems():
+            if name in self.tests:
+                self.tests[name].merge(case)
+            else:
+                self.tests[name] = case
+            self.status = max(self.status, case.status)
+
     def load_junit(self, fileobj, configuration):
         '''
         Load test data from a JUnit-style XML file.
@@ -242,7 +264,7 @@ class TestSuite(object):
         overall = 'Status: %s' % STATUS_NAMES[self.status].capitalize()
         return overall + ' - ' + ', '.join(ret)
 
-def processTests(parent_bob, job):
+def processTests(helper, job):
     '''
     For each built trove configured to extract tests, process those tests
     into JUnit output and return test and coverage data.
@@ -263,8 +285,8 @@ def processTests(parent_bob, job):
             cover_fobjs = []
 
             cs_job = [(name, (None, None), (version, flavor), True)]
-            changeset = parent_bob.cc.createChangeSet(cs_job, withFiles=True,
-                withFileContents=True)
+            changeset = helper.getClient().createChangeSet(cs_job,
+                withFiles=True, withFileContents=True)
 
             def getFile(pathId, fileId):
                 cont_item = changeset.getFileContents(pathId, fileId)[1]
@@ -295,7 +317,7 @@ def processTroveTests(test_suite, cover_data, name, version, flavor,
     log.debug('Processing tests from %s=%s[%s]', name, version, flavor)
 
     # XXX need a better parser (or format)
-    configuration = hashabledict(eval(configuration))
+    configuration = HashableDict(eval(configuration))
 
     # Tests
     for test_fobj in test_fobjs:

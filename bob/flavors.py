@@ -59,8 +59,15 @@ def expand_targets(cfg):
     '''
     Accept a target config section and return a list of build flavors.
     '''
+
+    # If no configuration is available, build is: x86
+    if not cfg:
+        return SETS['x86']
+
+    # Ensure flavor_set and flavor aren't both set
+    # This might be supported later, by recombining flavors from each
     if cfg.flavor_set and cfg.flavor:
-        raise RuntimeError('flavor_set and flavor cannot be used together')
+        raise ValueError('flavor_set and flavor cannot be used together')
 
     if cfg.flavor_set:
         try:

@@ -14,26 +14,25 @@ import time
 from conary.build.macros import Macros
 
 
-def expand(raw, parent, trove=None):
+def expand(raw, package):
     '''Transform a raw string with available configuration data.'''
+    data = package.getMangleData()
     macros = {}
 
     # Basic info
-    macros.update(parent.cfg.macros)
-    for cfg_item in ('targetLabel',):
-        macros[cfg_item] = str(getattr(parent.cfg, cfg_item))
+    macros.update(data['plan'].macros)
     macros['start_time'] = time.strftime('%Y%m%d_%H%M%S', time.localtime(
-        parent.start_time))
+        data['startTime']))
 
     # Additional info available in trove contexts
-    if trove:
-        if trove in parent.targets:
-            hg = parent.targets[trove].hg
-            if hg and parent.hg.has_key(hg):
-                macros['hg'] = parent.hg[hg][1]
-            elif hg:
+    config = package.getTargetConfig()
+    if config:
+        if config.hg:
+            if data['hg'].has_key(config.hg):
+                macros['hg'] = data['hg'][config.hg][1]
+            else:
                 logging.warning('Trove %s references undefined Hg '
-                    'repository %s', trove, hg)
+                    'repository %s', package.getPackageName(), config.hg)
 
     _macros = Macros(macros)
     return raw % _macros

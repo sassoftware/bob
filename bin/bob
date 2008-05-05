@@ -6,5 +6,5 @@
 #
 
 import sys
-from bob import cook
-sys.exit(cook.main(sys.argv[1:]))
+from bob import main
+sys.exit(main.main(sys.argv[1:]))
