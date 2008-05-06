@@ -65,16 +65,27 @@ def getPackagesFromTargets(targetPackages, helper, mangleData, targetConfigs):
         I{buildPackages}
         '''
 
+        # Check that the trove doesn't have a matchTroveRule against it
+        if not _filterListByMatchSpecs(helper.cfg.reposName,
+          helper.plan.matchTroveRule, [(name, version, deps.Flavor())]):
+            log.debug('Skipping %s=%s due to matchTroveRule', name, version)
+            return
+
+        # Create a BobPackage if it doesn't exist
         if name not in buildPackages:
             packageName = name.split(':')[0]
             buildPackages[name] = BobPackage(name, version,
                 targetConfig=targetConfigs.get(packageName, None))
         package = buildPackages[name]
 
+        # Mangle if needed
         if not package.hasDownstreamVersion():
             prepareTrove(package, mangleData, helper)
+
+        # Add new flavor(s) to package
         package.addFlavors([flavor])
 
+        # If this was pulled in by a group, mark it as a child package
         if parent:
             assert parent in buildPackages
             buildPackages[parent].addChild(name)
