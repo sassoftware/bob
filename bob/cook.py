@@ -55,7 +55,8 @@ class Batch(object):
         config = bobTrove.getTargetConfig()
         if config:
             for key, value in config.macros.iteritems():
-                macros[key] = value % _macros
+                if key not in ('version', 'buildlabel', 'buildbranch'):
+                    macros[key] = value % _macros
 
         # Reduce the set of flavors to build
         newFlavors = flavors.reduce_flavors(bobTrove.getPackageName(),
