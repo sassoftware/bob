@@ -159,7 +159,7 @@ class BobMain(object):
         if os.path.isdir('output'):
             shutil.rmtree('output')
 
-    def _writeArtifacts(self):
+    def _writeArtifacts(self, coverageReportType):
         '''
         Announce test results and write tests and coverage to disk.
         '''
@@ -177,8 +177,11 @@ class BobMain(object):
             coverage.simple_report(report, sys.stdout)
             coverage.simple_report(report,
                 open('output/coverage/report.txt', 'w'))
+            if coverageReportType == "clover":
+                coverage.clover_report(report,
+                    open('output/coverage/clover.xml', 'w'))
 
-    def run(self):
+    def run(self, coverageReportType):
         '''
         Execute the bob plan.
         '''
@@ -211,7 +214,7 @@ class BobMain(object):
 
                 # We need to write out the test results early since
                 # some failed
-                self._writeArtifacts()
+                self._writeArtifacts(coverageReportType)
                 print 'Aborting due to failed tests'
                 return 4
             else:
@@ -219,7 +222,7 @@ class BobMain(object):
                 coverage.merge(self._coverageData, batch.getCoverageData())
 
         # Output test and coverage results
-        self._writeArtifacts()
+        self._writeArtifacts(coverageReportType)
 
         return 0
 
@@ -257,8 +260,12 @@ def main(args):
 
     try:
         plan = args[0]
+        if len(args) > 1:
+            coverageReportType = args[1]
+        else:
+            coverageReportType = 'simple'
     except IndexError:
-        print >>sys.stderr, 'Usage: %s <plan file or URI>' % sys.argv[0]
+        print >>sys.stderr, 'Usage: %s <plan file or URI> [coverage report type]' % sys.argv[0]
         return 1
 
     addRootLogger()
@@ -270,7 +277,7 @@ def main(args):
     sys.excepthook = sys.__excepthook__
 
     _main.readPlan(plan)
-    return _main.run()
+    return _main.run(coverageReportType)
 
 if __name__ == '__main__':
     sys.exit(main(sys.argv[1:]))

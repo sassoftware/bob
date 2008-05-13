@@ -126,6 +126,13 @@ def dump(cover_data, fileobj):
 
     cPickle.dump(cover_data, fileobj, protocol=2)
 
+def clover_report((covered, (total_statements, total_executed)),
+  fileobj=None):
+    '''
+    Print a clover coverage report from data produced by process_coverage.
+    '''
+    print >>fileobj, 'Hello Clover!'
+
 def load(cover_data, fileobj):
     '''
     Add the coverage data from one coverage blob to a "grand total"
