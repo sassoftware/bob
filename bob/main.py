@@ -124,6 +124,8 @@ class BobMain(object):
         # Set up global macros
         _macros = Macros(self._cfg.macros)
         for key, value in self._cfg.macros.iteritems():
+            if key in self._cfg.skipMacros:
+                continue
             try:
                 cfg.macros[key] = value % _macros
             except MacroKeyError:

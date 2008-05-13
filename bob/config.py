@@ -56,6 +56,7 @@ class BobConfig(cfg.SectionedConfigFile):
 
     # misc
     commitMessage           = (CfgString, 'Automated clone by bob3')
+    skipMacros              = (CfgList(CfgString), ['version'])
 
     # custom handling of sections
     _sectionMap = {'target': BobTargetSection, 'wiki': BobWikiSection}

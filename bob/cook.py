@@ -55,7 +55,7 @@ class Batch(object):
         config = bobTrove.getTargetConfig()
         if config:
             for key, value in config.macros.iteritems():
-                if key not in ('version', 'buildlabel', 'buildbranch'):
+                if key not in self._helper.plan.skipMacros:
                     macros[key] = value % _macros
 
         # Reduce the set of flavors to build
