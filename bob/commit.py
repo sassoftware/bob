@@ -94,7 +94,6 @@ def clone_job(helper, job):
         #assert source_version.getHost() == helper.cfg.reposName
 
         # Determine which branch this will be committed to
-        import epdb;epdb.st()
         source_branch = origin_branch = source_version.branch()
         target_branch = origin_branch.createShadow(helper.plan.targetLabel)
 
