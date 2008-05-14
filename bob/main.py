@@ -169,6 +169,7 @@ class BobMain(object):
         if self._testSuite.tests:
             self._testSuite.write_junit(open('output/tests/junit.xml', 'w'))
 
+        print "COVERAGE REPORT TYPE: %s"%coverageReportType
         os.makedirs('output/coverage')
         if self._coverageData:
             report = coverage.process(self._coverageData)
@@ -177,10 +178,11 @@ class BobMain(object):
             coverage.simple_report(report, sys.stdout)
             coverage.simple_report(report,
                 open('output/coverage/report.txt', 'w'))
-            print "COVERAGE REPORT TYPE: %s"%coverageReportType
             if coverageReportType == "clover":
                 coverage.clover_report(report,
                     open('output/coverage/clover.xml', 'w'))
+        else:
+            print "NO COVERAGE DATA"
 
     def run(self, coverageReportType):
         '''
