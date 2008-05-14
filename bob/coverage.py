@@ -131,31 +131,27 @@ def clover_report((covered, (total_statements, total_executed)),
     '''
     Print a clover coverage report from data produced by process_coverage.
     '''
-    print >>fileobj, '''<coverage generated="1167892240109" clover="1.3.13">
-   <project timestamp="1167892239971">
-      <metrics coveredelements="55" packages="1" coveredconditionals="3" ncloc="117" statements="47" loc="267" files="5" 
-                  conditionals="4" coveredmethods="10" coveredstatements="42" methods="13" classes="5" elements="64"/>
-
-      <package name="edu.hawaii.stack">
-         <metrics coveredelements="55" files="5" coveredconditionals="3" conditionals="4" ncloc="117" statements="47" 
-                     coveredstatements="42" coveredmethods="10" loc="267" methods="13" classes="5" elements="64"/>
-
-         <file name="foo.py">
-            <class name="Foobar">
-               <metrics coveredelements="2" coveredconditionals="0" conditionals="0" statements="2" coveredstatements="1" 
-                           coveredmethods="1" methods="2" elements="4"/>
-            </class>
-            <metrics coveredelements="2" coveredconditionals="0" conditionals="0" ncloc="11" statements="2" 
-                        coveredstatements="1" coveredmethods="1" loc="37" methods="2" classes="1" elements="4"/>
-            <line num="23" type="method" count="1"/>
-            <line num="24" type="stmt" count="1"/>
-            <line num="34" type="method" count="0"/>
-            <line num="35" type="stmt" count="0"/>
-         </file>
-
-      </package>
-   </project>
-</coverage>'''
+    
+    theTime = int(time.time())
+    
+    print >>fileobj, '<coverage generated="%d" clover="1.0">' % theTime
+    
+    print >>fileobj, '\t<project timestamp="%d">' % theTime
+    
+    for file in sorted(covered.keys()):
+        num_statements, num_executed = covered[file]
+        
+        print >>fileobj, '\t\t<file name="%s">' % file
+        
+        print >>fileobj, '\t\t\t<metrics statements="%d" coveredstatements="%d">' % (num_statements, num_executed)
+        
+        print >>fileobj, '\t\t\t</metrics>'
+        
+        print >>fileobj, '\t\t</file>'
+    
+    print >>fileobj, '\t</project>'
+    
+    print >>fileobj, '</coverage>'
 
 def load(cover_data, fileobj):
     '''
