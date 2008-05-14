@@ -134,7 +134,7 @@ def clover_report((covered, (total_statements, total_executed)),
     
     theTime = int(time.time())
     
-    print >>fileobj, '<coverage generated="%d" clover="1.0">' % theTime
+    print >>fileobj, '<coverage generated="%d" clover="1.3.13">' % theTime
     
     print >>fileobj, '\t<project timestamp="%d">' % theTime
     
@@ -143,9 +143,7 @@ def clover_report((covered, (total_statements, total_executed)),
         
         print >>fileobj, '\t\t<file name="%s">' % file
         
-        print >>fileobj, '\t\t\t<metrics statements="%d" coveredstatements="%d">' % (num_statements, num_executed)
-        
-        print >>fileobj, '\t\t\t</metrics>'
+        print >>fileobj, '\t\t\t<metrics statements="%d" coveredstatements="%d"/>' % (num_statements, num_executed)
         
         print >>fileobj, '\t\t</file>'
     
