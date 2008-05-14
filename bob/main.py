@@ -177,6 +177,7 @@ class BobMain(object):
             coverage.simple_report(report, sys.stdout)
             coverage.simple_report(report,
                 open('output/coverage/report.txt', 'w'))
+            print "COVERAGE REPORT TYPE: %s"%coverageReportType
             if coverageReportType == "clover":
                 coverage.clover_report(report,
                     open('output/coverage/clover.xml', 'w'))
