@@ -138,18 +138,111 @@ def clover_report((covered, (total_statements, total_executed)),
     
     print >>fileobj, '\t<project timestamp="%d">' % theTime
     
-    for file in sorted(covered.keys()):
-        num_statements, num_executed = covered[file]
+    
+    # get the data needed by clover
+    cloverData = gatherCloverData(covered)
+    
+    for pkgData in cloverData:
+        pkgName = pkgData['package']
+        pkgNumStmts = pkgData['total'][0]
+        pkgNumCov = pkgData['total'][1]
         
-        print >>fileobj, '\t\t<file name="%s">' % file
+        # write out package metrics
+        print >>fileobj, '\t\t<package name="%s">' % pkgName
+        print >>fileobj, '\t\t\t<metrics statements="%d" coveredstatements="%d"/>' % (pkgNumStmts, pkgNumCov)
         
-        print >>fileobj, '\t\t\t<metrics statements="%d" coveredstatements="%d"/>' % (num_statements, num_executed)
-        
-        print >>fileobj, '\t\t</file>'
+        filesData = pkgData['files']
+        for fileData in filesData:
+            fileName = fileData[0]
+            fileNumStmts = fileData[1]
+            fileNumCov = fileData[2]
+            
+            # print file metrics
+            print >>fileobj, '\t\t\t<file name="%s">' % fileName
+            print >>fileobj, '\t\t\t\t<metrics statements="%d" coveredstatements="%d"/>' % (fileNumStmts, fileNumCov) 
+            print >>fileobj, '\t\t\t</file>'
+    
+        print >>fileobj, '\t\t</package>'
     
     print >>fileobj, '\t</project>'
     
     print >>fileobj, '</coverage>'
+    
+def testCloverReport():
+    cov = dict()
+    cov['raa-plugins/configure/__init__.py'] = (12,12)
+    cov['raa-plugins/configure/foo.py'] = (120,12)
+    cov['raa-plugins/configure/srv/entitlements.py'] = (65, 46)
+    cov['raa/db/database.py'] = (225, 192)
+    cov['raa/lib/url.py'] = (68,68)
+    cov['raa/web/__init__.py'] = (254,194)
+    cov['raa/web/web.py'] = (25,19)
+    
+    clover_report((cov, (0, 0)), open('/tmp/clover.xml', 'w'))
+    
+def testGatherCloverData():
+    cov = dict()
+    cov['raa-plugins/configure/__init__.py'] = (12,12)
+    cov['raa-plugins/configure/foo.py'] = (120,12)
+    cov['raa-plugins/configure/srv/entitlements.py'] = (65, 46)
+    cov['raa/db/database.py'] = (225, 192)
+    cov['raa/lib/url.py'] = (68,68)
+    cov['raa/web/__init__.py'] = (254,194)
+    cov['raa/web/web.py'] = (25,19)
+    
+    data = gatherCloverData(cov)
+    
+    for d in data:
+        print "%s: total stmt %s, total cov %s" % (d['package'], d['total'][0], d['total'][1])
+        for fileData in d['files']:
+            print "\t%s: %d, %d" % (fileData[0], fileData[1], fileData[2])
+    
+    return data
+
+    
+def gatherCloverData(covered):
+    '''
+    Get the clover coverage data from data produced by process_coverage.
+    '''
+    cloverData = []
+    
+    if not covered:
+        return cloverData
+    
+    lastPackage = None
+    packageData = dict()
+    packageFiles = []
+    pkgNumStmts = 0
+    pkgNumCov = 0
+    for file in sorted(covered.keys()):
+        # gather the data for clover
+        fileDir = os.path.split(file)[0]
+        curPackage = fileDir.lstrip(os.path.sep).replace(os.path.sep, '.')
+        
+        if curPackage != lastPackage:
+            if packageData:
+                packageData['files'] = packageFiles
+                packageData['total'] = (pkgNumStmts, pkgNumCov)
+                cloverData.append(packageData)
+                packageData = dict()
+                packageFiles = []
+                pkgNumStmts = 0
+                pkgNumCov = 0
+            packageData['package'] = curPackage
+            lastPackage = curPackage
+            
+        fileNumStmts, fileNumCov = covered[file]
+        pkgNumStmts += fileNumStmts
+        pkgNumCov += fileNumCov
+        packageFiles.append((file, fileNumStmts, fileNumCov))
+        
+    if packageData:
+        # add the last one
+        packageData['files'] = packageFiles
+        packageData['total'] = (pkgNumStmts, pkgNumCov)
+        cloverData.append(packageData)
+    
+    return cloverData
 
 def load(cover_data, fileobj):
     '''
