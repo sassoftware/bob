@@ -135,12 +135,13 @@ def clover_report((covered, (total_statements, total_executed)),
     theTime = int(time.time())
     
      # get the data needed by clover
-    cloverData, projectLoc, projectCloc, numFiles = gatherCloverData(covered)
+    cloverData, projNumStmt, projNumCov, numFiles = gatherCloverData(covered)
+    numPackages = len(cloverData)
     
     print >>fileobj, '<coverage generated="%d" clover="1.3.13">' % theTime
     
     print >>fileobj, '\t<project timestamp="%d">' % theTime
-    print >> fileobj, '\t\t<metrics loc="%d" ncloc="%d" files="%d" />' % (projectLoc, projectCloc, numFiles)
+    print >> fileobj, '\t\t<metrics loc="%d" statements="%d" coveredstatements="%d" packages="%d" files="%d" />' % (projNumStmt, projNumStmt, projNumCov, numPackages, numFiles)
     
     for pkgData in cloverData:
         pkgName = pkgData['package']
@@ -149,7 +150,7 @@ def clover_report((covered, (total_statements, total_executed)),
         
         # write out package metrics
         print >>fileobj, '\t\t<package name="%s">' % pkgName
-        print >>fileobj, '\t\t\t<metrics loc="%d" ncloc="%d"/>' % (pkgNumStmts, pkgNumCov)
+        print >>fileobj, '\t\t\t<metrics loc="%d" statements="%d" coveredstatements="%d"/>' % (projNumStmt, projNumStmt, pkgNumCov)
         
         filesData = pkgData['files']
         for fileData in filesData:
@@ -159,11 +160,8 @@ def clover_report((covered, (total_statements, total_executed)),
 
             # print file metrics
             print >>fileobj, '\t\t\t<file name="%s">' % fileName
-            #print >>fileobj, '\t\t\t\t<class name="Foo">'
-            #print >>fileobj, '\t\t\t\t\t<metrics coveredelements="2" coveredconditionals="0" conditionals="0" statements="2" coveredstatements="1" coveredmethods="1" methods="2" elements="4"/>'
-            #print >>fileobj, '\t\t\t\t</class>'
             
-            print >>fileobj, '\t\t\t\t<metrics loc="%d" ncloc="%d"/>' % (fileNumStmts, fileNumCov) 
+            print >>fileobj, '\t\t\t\t<metrics loc="%d" statements="%d" coveredstatements="%d"/>' % (fileNumStmts, fileNumStmts, fileNumCov) 
             print >>fileobj, '\t\t\t</file>'
     
         print >>fileobj, '\t\t</package>'
