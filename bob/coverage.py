@@ -134,13 +134,13 @@ def clover_report((covered, (total_statements, total_executed)),
     
     theTime = int(time.time())
     
+     # get the data needed by clover
+    cloverData, projectLoc, projectCloc, numFiles = gatherCloverData(covered)
+    
     print >>fileobj, '<coverage generated="%d" clover="1.3.13">' % theTime
     
     print >>fileobj, '\t<project timestamp="%d">' % theTime
-    print >> fileobj, '\t\t<metrics coveredelements="55" packages="1" coveredconditionals="3" ncloc="117" statements="47" loc="267" files="5" conditionals="4" coveredmethods="10" coveredstatements="42" methods="13" classes="5" elements="64"/>'
-    
-    # get the data needed by clover
-    cloverData = gatherCloverData(covered)
+    print >> fileobj, '\t\t<metrics loc="%d" ncloc="%d" files="%d" />' % (projectLoc, projectCloc, numFiles)
     
     for pkgData in cloverData:
         pkgName = pkgData['package']
@@ -149,7 +149,7 @@ def clover_report((covered, (total_statements, total_executed)),
         
         # write out package metrics
         print >>fileobj, '\t\t<package name="%s">' % pkgName
-        print >>fileobj, '\t\t\t<metrics statements="%d" coveredstatements="%d"/>' % (pkgNumStmts, pkgNumCov)
+        print >>fileobj, '\t\t\t<metrics loc="%d" ncloc="%d"/>' % (pkgNumStmts, pkgNumCov)
         
         filesData = pkgData['files']
         for fileData in filesData:
@@ -159,11 +159,11 @@ def clover_report((covered, (total_statements, total_executed)),
 
             # print file metrics
             print >>fileobj, '\t\t\t<file name="%s">' % fileName
-            print >>fileobj, '\t\t\t\t<class name="ClearStack">'
+            print >>fileobj, '\t\t\t\t<class name="Foo">'
             print >>fileobj, '\t\t\t\t\t<metrics coveredelements="2" coveredconditionals="0" conditionals="0" statements="2" coveredstatements="1" coveredmethods="1" methods="2" elements="4"/>'
             print >>fileobj, '\t\t\t\t</class>'
             
-            print >>fileobj, '\t\t\t\t<metrics statements="%d" coveredstatements="%d"/>' % (fileNumStmts, fileNumCov) 
+            print >>fileobj, '\t\t\t\t<metrics loc="%d" ncloc="%d"/>' % (fileNumStmts, fileNumCov) 
             print >>fileobj, '\t\t\t</file>'
     
         print >>fileobj, '\t\t</package>'
@@ -194,7 +194,7 @@ def testGatherCloverData():
     cov['raa/web/__init__.py'] = (254,194)
     cov['raa/web/web.py'] = (25,19)
     
-    data = gatherCloverData(cov)
+    data, projStmt, projCov, numFiles = gatherCloverData(cov)
     
     for d in data:
         print "%s: total stmt %s, total cov %s" % (d['package'], d['total'][0], d['total'][1])
@@ -213,12 +213,18 @@ def gatherCloverData(covered):
     if not covered:
         return cloverData
     
+    files = covered.keys()
+    
+    projNumStmts = 0
+    projNumCov = 0
+    projNumFiles = len(files)
+    
     lastPackage = None
     packageData = dict()
     packageFiles = []
     pkgNumStmts = 0
     pkgNumCov = 0
-    for file in sorted(covered.keys()):
+    for file in sorted(files):
         # gather the data for clover
         fileDir = os.path.split(file)[0]
         curPackage = fileDir.lstrip(os.path.sep).replace(os.path.sep, '.')
@@ -227,6 +233,8 @@ def gatherCloverData(covered):
             if packageData:
                 packageData['files'] = packageFiles
                 packageData['total'] = (pkgNumStmts, pkgNumCov)
+                projNumStmts += pkgNumStmts
+                projNumCov += pkgNumCov
                 cloverData.append(packageData)
                 packageData = dict()
                 packageFiles = []
@@ -246,7 +254,7 @@ def gatherCloverData(covered):
         packageData['total'] = (pkgNumStmts, pkgNumCov)
         cloverData.append(packageData)
     
-    return cloverData
+    return cloverData, projNumStmts, projNumCov, projNumFiles
 
 def load(cover_data, fileobj):
     '''
