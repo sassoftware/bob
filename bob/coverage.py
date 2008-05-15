@@ -159,9 +159,9 @@ def clover_report((covered, (total_statements, total_executed)),
 
             # print file metrics
             print >>fileobj, '\t\t\t<file name="%s">' % fileName
-            print >>fileobj, '\t\t\t\t<class name="Foo">'
-            print >>fileobj, '\t\t\t\t\t<metrics coveredelements="2" coveredconditionals="0" conditionals="0" statements="2" coveredstatements="1" coveredmethods="1" methods="2" elements="4"/>'
-            print >>fileobj, '\t\t\t\t</class>'
+            #print >>fileobj, '\t\t\t\t<class name="Foo">'
+            #print >>fileobj, '\t\t\t\t\t<metrics coveredelements="2" coveredconditionals="0" conditionals="0" statements="2" coveredstatements="1" coveredmethods="1" methods="2" elements="4"/>'
+            #print >>fileobj, '\t\t\t\t</class>'
             
             print >>fileobj, '\t\t\t\t<metrics loc="%d" ncloc="%d"/>' % (fileNumStmts, fileNumCov) 
             print >>fileobj, '\t\t\t</file>'
