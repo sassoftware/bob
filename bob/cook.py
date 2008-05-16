@@ -135,6 +135,7 @@ class Batch(object):
                 '(probably to the wrong place)', jobId)
             raise JobFailedError(jobId=jobId, why='Job already committing')
 
+        log.info('Starting commit of job %d', jobId)
         self._helper.getrMakeClient().startCommit([jobId])
 
         try:
