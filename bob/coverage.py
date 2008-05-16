@@ -12,6 +12,7 @@ import cPickle
 import logging
 import os
 import time
+import sys
 
 log = logging.getLogger('bob.coverage')
 
@@ -42,10 +43,16 @@ def process(cover_data):
 
 
 def simple_report((covered, (total_statements, total_executed)),
-  fileobj=None):
+    dirName, fileName=None):
     '''
     Print a simple coverage report from data produced by process_coverage.
     '''
+
+    if fileName == None:
+        fileobj = sys.stdout
+    else:
+        fullPath = dirName + os.path.sep + fileName
+        fileobj = open(fullPath, 'w')
 
     # Print out a report
     max_name = max([5,] + map(len, covered.keys()))
@@ -118,70 +125,53 @@ def wiki_summary((covered, (total_statements, total_executed)), cfg):
         cfg.root, wiki_path)
 
 
-def dump(cover_data, fileobj):
+def dump(cover_data, dirName, fileName='pickle'):
     '''
     Write coverage data to a file as a pickle.
     '''
     assert isinstance(cover_data, dict)
+    
+    fullPath = dirName + os.path.sep + fileName
+    fileobj = open(fullPath, 'w')
 
     cPickle.dump(cover_data, fileobj, protocol=2)
+    
+def generate_reports(dirName, oldSchoolCoverageData, pickleDict):
+    """
+    Generate all the coverage reports
+    @param dirName: the directory to create the reports in
+    @param oldSchoolCoverageData: the old-school coverage data as returned by
+        coverage.process
+    @param pickleDict: a dict for pickle to dump.  THis should eventually go
+        away.
+    """
+    
+    # get the coverage data object
+    coverageData = CoverageData.parseCoverageData(oldSchoolCoverageData)
+    
+    # create the dir
+    os.makedirs(dirName)
+    
+    # pickle dump
+    # TODO: dump the coverage data object instead of dict?
+    dump(pickleDict, dirName)
+    
+    # simple reports
+    # TODO: change to subclass of CoverageReport and use coverage data object
+    simple_report(oldSchoolCoverageData, dirName)
+    simple_report(oldSchoolCoverageData, dirName, 'simple.txt')
+    
+    # clover report
+    CoverageReportClover(dirName, 'clover.xml', coverageData).writeReport()
 
 def clover_report((covered, (total_statements, total_executed)),
   fileobj=None):
     '''
     Print a clover coverage report from data produced by process_coverage.
     '''
-    
-    theTime = int(time.time())
-        
-     # get the data needed by clover
-    coverageData = CoverageData.parseCoverageData((covered, 
-                       (total_statements, total_executed)))
-    
-    # project data
-    projTotals = coverageData.getCoverageTotalsData()
-    projFiles = projTotals.getTotalFiles()
-    projStmts = projTotals.getTotalStatements()
-    projCovStmts = projTotals.getTotalCoveredStatements()
-    
-    # package data
-    pkgData = coverageData.getCoveragePackageData()
-    numPackages = len(pkgData) 
-    
-    print >>fileobj, '<coverage generated="%d" clover="1.3.13">' % theTime
-    
-    print >>fileobj, '\t<project timestamp="%d">' % theTime
-    print >> fileobj, '\t\t<metrics conditionals="0" coveredmethods="0" methods="0" classes="0" elements="0" coveredelements="0" coveredconditionals="0" ncloc="%d" loc="%d" statements="%d" coveredstatements="%d" packages="%d" files="%d" />' % (projStmts, projStmts, projStmts, projCovStmts, numPackages, projFiles)
-    
-    for pkg in pkgData:
-        
-        pkgTotals = pkg.getCoverageTotalsData()
-        pkgFiles = pkgTotals.getTotalFiles()
-        pkgStmts = pkgTotals.getTotalStatements()
-        pkgCovStmts = pkgTotals.getTotalCoveredStatements()
-        
-        # write out package metrics
-        print >>fileobj, '\t\t<package name="%s">' % pkg.getPackageName()
-        print >>fileobj, '\t\t\t<metrics loc="%d" statements="%d" coveredstatements="%d" files="%d"/>' % (pkgStmts, pkgStmts, pkgCovStmts, pkgFiles)
-        
-        filesData = pkg.getCoverageFileData()
-        for fileData in filesData:
-            fileName = fileData.getFileName()
-            fileTotals = fileData.getCoverageTotalsData()
-            fileStmts = fileTotals.getTotalStatements()
-            fileCovStmts = fileTotals.getTotalCoveredStatements()
 
-            # print file metrics
-            print >>fileobj, '\t\t\t<file name="%s">' % fileName
-            
-            print >>fileobj, '\t\t\t\t<metrics loc="%d" statements="%d" coveredstatements="%d"/>' % (fileStmts, fileStmts, fileCovStmts) 
-            print >>fileobj, '\t\t\t</file>'
-    
-        print >>fileobj, '\t\t</package>'
-    
-    print >>fileobj, '\t</project>'
-    
-    print >>fileobj, '</coverage>'
+    report = CoverageReportClover('/tmp/clover.xml', covData)
+    report.writeReport()    
     
 def testCloverReport():
     cov = dict()
@@ -193,7 +183,33 @@ def testCloverReport():
     cov['raa/web/__init__.py'] = (254,194)
     cov['raa/web/web.py'] = (25,19)
     
-    clover_report((cov, (150, 105)), open('/tmp/clover.xml', 'w'))
+    covData =  CoverageData.parseCoverageData((cov, (150, 105)))
+    CoverageReportClover('/tmp/clover.xml', covData).writeReport()
+    
+def testGenReports():
+    cov = dict()
+    cov['raa-plugins/configure/__init__.py'] = (12,12)
+    cov['raa-plugins/configure/foo.py'] = (120,12)
+    cov['raa-plugins/configure/srv/entitlements.py'] = (65, 46)
+    cov['raa/db/database.py'] = (225, 192)
+    cov['raa/lib/url.py'] = (68,68)
+    cov['raa/web/__init__.py'] = (254,194)
+    cov['raa/web/web.py'] = (25,19)
+    
+    generate_reports('/tmp/reports', (cov, (150, 105)), dict(data="foo"))
+    
+def testSimpleReport():
+    cov = dict()
+    cov['raa-plugins/configure/__init__.py'] = (12,12)
+    cov['raa-plugins/configure/foo.py'] = (120,12)
+    cov['raa-plugins/configure/srv/entitlements.py'] = (65, 46)
+    cov['raa/db/database.py'] = (225, 192)
+    cov['raa/lib/url.py'] = (68,68)
+    cov['raa/web/__init__.py'] = (254,194)
+    cov['raa/web/web.py'] = (25,19)
+    
+    covData =  CoverageData.parseCoverageData((cov, (150, 105)))
+    CoverageReportSimple('/tmp/simple.txt', covData).writeReport()
     
 def testGatherCloverData():
     cov = dict()
@@ -324,54 +340,17 @@ class CoverageTotalsData:
         """
         td = CoverageTotalsData()
         if totalsData and len(totalsData) == 2:
-            td.setTotalStatements(totalsData[0])
-            td.setTotalCoveredStatements(totalsData[1])
+            td.totalStatements = totalsData[0]
+            td.totalCoveredStatements = totalsData[1]
         return td
-    
-    def getTotalFiles(self):
-        """
-        Return the total number of files
-        """
-        return self.totalFiles
-    
-    def setTotalFiles(self, totalFiles):
-        """
-        Set the total number of files
-        @param totalFiles: the total number of files
-        """
-        self.totalFiles = totalFiles
-    
-    def getTotalStatements(self):
-        """
-        Return the total number of statements
-        """
-        return self.totalStatements
-    
-    def setTotalStatements(self, totalStatements):
-        """
-        Set the total number of statements
-        """
-        self.totalStatements = totalStatements
-        
-    def getTotalCoveredStatements(self):
-        """
-        Return the total number of covered statements
-        """
-        return self.totalCoveredStatements
-    
-    def setTotalCoveredStatements(self, totalCoveredStatements):
-        """
-        Set the total number of covered statements
-        """
-        self.totalCoveredStatements = totalCoveredStatements
         
     def display(self):
         """
         Display coverage totals data in human readable form
         """
         print "\ttotal files=%d, total statements=%d, total covered statements=%d" % \
-                (self.totalFiles, self.getTotalStatements(),
-                 self.getTotalCoveredStatements())
+                (self.totalFiles, self.totalStatements,
+                 self.totalCoveredStatements)
                             
 class CoverageFileData:
     """
@@ -391,42 +370,16 @@ class CoverageFileData:
         """
         cfd = CoverageFileData()
         if file:
-            cfd.setFileName(file)
+            cfd.fileName = file
             
         if fileData and len(fileData) == 2:
             ctd = CoverageTotalsData()
-            ctd.setTotalFiles(1)
-            ctd.setTotalStatements(fileData[0])
-            ctd.setTotalCoveredStatements(fileData[1])
-            cfd.setCoverageTotalsData(ctd)
+            ctd.totalFiles = 1
+            ctd.totalStatements = fileData[0]
+            ctd.totalCoveredStatements = fileData[1]
+            cfd.coverageTotalsData = ctd
             
         return cfd
-    
-    def getFileName(self):
-        """
-        Returns the file name
-        """
-        return self.fileName
-    
-    def setFileName(self, fileName):
-        """
-        Set the file name
-        @param fileName: the name of the file
-        """
-        self.fileName = fileName
-        
-    def getCoverageTotalsData(self):
-        """
-        Returns a CoverageTotalsData object
-        """
-        return self.coverageTotalsData
-    
-    def setCoverageTotalsData(self, coverageTotalsData):
-        """
-        Set the coverage file data
-        @param coverageTotalsData: a CoverageTotalsData object
-        """
-        self.coverageTotalsData = coverageTotalsData
         
     def display(self):
         """
@@ -434,8 +387,8 @@ class CoverageFileData:
         """
         fileTotals = self.getCoverageTotalsData()
         print "%s: statements=%d, statements covered=%d" % \
-            (self.getFileName(), fileTotals.getTotalStatements(), 
-             fileTotals.getTotalCoveredStatements())
+            (self.fileName, fileTotals.totalStatements, 
+             fileTotals.totalCoveredStatements)
         
 class CoveragePackageData:
     """
@@ -446,6 +399,7 @@ class CoveragePackageData:
         self.packageName = None
         self.coverageFileData = []
         self.coverageTotalsData = CoverageTotalsData()
+        self.maxFileNameLen = 0
     
     @staticmethod
     def parseCoveragePackageData(packageName, filesData):
@@ -457,7 +411,7 @@ class CoveragePackageData:
         
         cpd = CoveragePackageData()
         if packageName:
-            cpd.setPackageName(packageName)
+            cpd.packageName = packageName
             
         pkgNumFiles = 0
         pkgNumStatements = 0
@@ -465,45 +419,22 @@ class CoveragePackageData:
         for fileData in filesData:
             pkgNumFiles += 1
             file = fileData.keys()[0]
+            fileLen = len(file)
+            if fileLen > cpd.maxFileNameLen:
+                cpd.maxFileNameLen = fileLen
             cfd = CoverageFileData.parseCoverageFileData(file, fileData[file])
             cpd.addCoverageFileData(cfd)
-            fileTotals = cfd.getCoverageTotalsData()
-            pkgNumStatements += fileTotals.getTotalStatements()
-            pkgNumCoveredStatements += fileTotals.getTotalCoveredStatements()
+            fileTotals = cfd.coverageTotalsData
+            pkgNumStatements += fileTotals.totalStatements
+            pkgNumCoveredStatements += fileTotals.totalCoveredStatements
             
         ctd = CoverageTotalsData()
-        ctd.setTotalFiles(pkgNumFiles)
-        ctd.setTotalStatements(pkgNumStatements)
-        ctd.setTotalCoveredStatements(pkgNumCoveredStatements)
-        cpd.setCoverageTotalsData(ctd)
+        ctd.totalFiles = pkgNumFiles
+        ctd.totalStatements = pkgNumStatements
+        ctd.totalCoveredStatements = pkgNumCoveredStatements
+        cpd.coverageTotalsData  = ctd
             
         return cpd
-    
-    def getPackageName(self):
-        """
-        Returns the package name
-        """
-        return self.packageName
-    
-    def setPackageName(self, packageName):
-        """
-        Set the package name
-        @param packageName: the name of the package
-        """
-        self.packageName = packageName
-    
-    def getCoverageFileData(self):
-        """
-        Returns a list of CoverageFileData objects
-        """
-        return self.coverageFileData
-    
-    def setCoverageFileData(self, coverageFileData):
-        """
-        Set the coverage file data
-        @param coverageFileData: a list of CoverageFileData objects
-        """
-        self.coverageFileData = coverageFileData
         
     def addCoverageFileData(self, coverageFileData):
         """
@@ -513,37 +444,24 @@ class CoveragePackageData:
         if not isinstance(self.coverageFileData, list):
             self.coverageFileData = []
         self.coverageFileData.append(coverageFileData)
-    
-    def getCoverageTotalsData(self):
-        """
-        Returns a CoverageTotalsData object
-        """
-        return self.coverageTotalsData
-    
-    def setCoverageTotalsData(self, coverageTotalsData):
-        """
-        Set the coverage file data
-        @param coverageTotalsData: a CoverageTotalsData object
-        """
-        self.coverageTotalsData = coverageTotalsData
         
     def display(self):
         """
         Display the package coverage data in human readable form
         """
-        print "Package: %s" % (self.getPackageName())
+        print "Package: %s" % (self.packageName())
         if self.coverageFileData:
             for data in self.coverageFileData:
                 print "%s: statements=%d, statements covered=%d" % \
-                    (data.getFileName(), data.getNumberOfStatements(), 
-                     data.getNumberOfCoveredStatements())
+                    (data.fileName, data.numberOfStatements, 
+                     data.numberOfCoveredStatements)
         else:
             print "No coverage data exists"
             
         if self.coverageTotalsData:
             print "total statements=%d, total statements covered=%d" % \
-                (self.coverageTotalsData.getTotalStatements(),
-                 self.coverageTotalsData.getTotalCoveredStatements())
+                (self.coverageTotalsData.totalStatements,
+                 self.coverageTotalsData.totalCoveredStatements)
             
 class CoverageData:
     """
@@ -584,7 +502,7 @@ class CoverageData:
                     cpd = CoveragePackageData.parseCoveragePackageData(
                               lastPackage, pkgFileData)
                     cd.addCoveragePackageData(cpd)
-                    totalFiles += cpd.getCoverageTotalsData().getTotalFiles()
+                    totalFiles += cpd.coverageTotalsData.totalFiles
                     pkgFileData = []
                 lastPackage = curPackage
             
@@ -593,23 +511,10 @@ class CoverageData:
             
         # set the totals data
         ctd = CoverageTotalsData.parseCoverageTotalsData(data[1])
-        ctd.setTotalFiles(totalFiles)
-        cd.setCoverageTotalsData(ctd)
+        ctd.totalFiles = totalFiles
+        cd.coverageTotalsData = ctd
             
         return cd
-        
-    def getCoveragePackageData(self):
-        """
-        Returns a list of CoveragePackageData objects
-        """
-        return self.coveragePackageData
-    
-    def setCoveragePackageData(self, coveragePackageData):
-        """
-        Set the coverage package data
-        @param coveragePackageData: a list of CoveragePackageData objects
-        """
-        self.coveragePackageData = coveragePackageData
         
     def addCoveragePackageData(self, coveragePackageData):
         """
@@ -619,19 +524,6 @@ class CoverageData:
         if not isinstance(self.coveragePackageData, list):
             self.coveragePackageData = []
         self.coveragePackageData.append(coveragePackageData)
-    
-    def getCoverageTotalsData(self):
-        """
-        Returns a CoverageTotalsData object
-        """
-        return self.coverageTotalsData
-    
-    def setCoverageTotalsData(self, coverageTotalsData):
-        """
-        Set the coverage file data
-        @param coverageTotalsData: a CoverageTotalsData object
-        """
-        self.coverageTotalsData = coverageTotalsData
             
     def display(self):
         """
@@ -645,15 +537,129 @@ class CoverageData:
             
         if self.coverageTotalsData:
             print "Totals: statements=%d, covered=%d" % \
-                (self.coverageTotalsData.getTotalStatements(),
-                 self.coverageTotalsData.getTotalCoveredStatements())
+                (self.coverageTotalsData.totalStatements,
+                 self.coverageTotalsData.totalCoveredStatements)
             
 class CoverageReport:
     """
     A generic coverage report class useful for subclassing
     """
-    pass
-
-if __name__ == '__main__':
-    import sys
-    sys.exit(testCloverReport())
+    
+    def __init__(self, dirName = None, fileName = None, coverageData = None):
+        """
+        Initialize the coverage report object
+        @param dirName: the directory to generate the report in
+        @param fileName: the name of the report file to generate
+        @param coverageData: a CoverageData object containg the coverage data
+        """
+        self.dirName = dirName
+        self.fileName = fileName
+        self.coverageData = coverageData
+        
+    def openFile(self):
+        """
+        Open the file for writing
+        """
+        full_path = self.dirName + os.path.sep + self.fileName
+        return open(full_path, 'w')
+    
+    def printReport(self):
+        """
+        Must be implemented by the subclass
+        """
+        raise NotImplementedError(
+            "printReport is not implemented by this object")
+        
+    def writeReport(self, fileobj = None):
+        """
+        Must be implemented by the subclass
+        """
+        raise NotImplementedError(
+            "writeReport is not implemented by this object")
+        
+class CoverageReportClover(CoverageReport):
+    """
+    A class for generating clover coverage reports
+    """
+    
+    def printReport(self, fileobj = sys.stdout):
+        """
+        Generate the clover report and print to console
+        """
+        self.writeReport(sys.stdout)
+    
+    def writeReport(self, fileobj = None):
+        """
+        Generate the clover report and write to file
+        """
+        
+        if fileobj == None:
+            fileobj = self.openFile()
+        
+        theTime = int(time.time())
+        
+        # project data
+        projTotals = self.coverageData.coverageTotalsData
+        projFiles = projTotals.totalFiles
+        projStmts = projTotals.totalStatements
+        projCovStmts = projTotals.totalCoveredStatements
+        
+        # package data
+        pkgData = self.coverageData.coveragePackageData
+        numPackages = len(pkgData) 
+        
+        print >>fileobj, '<coverage generated="%d" clover="1.0">' % theTime
+        
+        print >>fileobj, '\t<project timestamp="%d">' % theTime
+        print >> fileobj, \
+            '\t\t<metrics packages="%d" files="%d" classes="%d" '\
+                         'ncloc="%d" loc="%d" '\
+                         'conditionals="%d" coveredconditionals="%d" '\
+                         'methods="%d" coveredmethods="%d" '\
+                         'elements="%d" coveredelements="%d" '\
+                         'statements="%d" coveredstatements="%d" '\
+                 '/>' % \
+                 (numPackages, projFiles, projFiles,
+                  projStmts, projStmts,
+                  projStmts, projCovStmts,
+                  projStmts, projCovStmts,
+                  projStmts, projCovStmts,
+                  projStmts, projCovStmts)
+        
+        for pkg in pkgData:
+            
+            pkgTotals = pkg.coverageTotalsData
+            pkgFiles = pkgTotals.totalFiles
+            pkgStmts = pkgTotals.totalStatements
+            pkgCovStmts = pkgTotals.totalCoveredStatements
+            
+            # write out package metrics
+            print >>fileobj, '\t\t<package name="%s">' % pkg.packageName
+            print >>fileobj, \
+                '\t\t\t<metrics loc="%d" statements="%d" '\
+                               'coveredstatements="%d" files="%d" '\
+                       '/>' % \
+                       (pkgStmts, pkgStmts, pkgCovStmts, pkgFiles)
+            
+            filesData = pkg.coverageFileData
+            for fileData in filesData:
+                fileName = fileData.fileName
+                fileTotals = fileData.coverageTotalsData
+                fileStmts = fileTotals.totalStatements
+                fileCovStmts = fileTotals.totalCoveredStatements
+    
+                # print file metrics
+                print >>fileobj, '\t\t\t<file name="%s">' % fileName
+                
+                print >>fileobj, \
+                    '\t\t\t\t<metrics loc="%d" statements="%d" '\
+                                     'coveredstatements="%d" '\
+                             '/>' % \
+                             (fileStmts, fileStmts, fileCovStmts) 
+                print >>fileobj, '\t\t\t</file>'
+        
+            print >>fileobj, '\t\t</package>'
+        
+        print >>fileobj, '\t</project>'
+        
+        print >>fileobj, '</coverage>'

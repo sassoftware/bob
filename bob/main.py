@@ -159,7 +159,7 @@ class BobMain(object):
         if os.path.isdir('output'):
             shutil.rmtree('output')
 
-    def _writeArtifacts(self, coverageReportType):
+    def _writeArtifacts(self):
         '''
         Announce test results and write tests and coverage to disk.
         '''
@@ -169,19 +169,12 @@ class BobMain(object):
         if self._testSuite.tests:
             self._testSuite.write_junit(open('output/tests/junit.xml', 'w'))
 
-        os.makedirs('output/coverage')
         if self._coverageData:
             report = coverage.process(self._coverageData)
-            coverage.dump(self._coverageData,
-                open('output/coverage/pickle', 'w'))
-            coverage.simple_report(report, sys.stdout)
-            coverage.simple_report(report,
-                open('output/coverage/report.txt', 'w'))
-            if coverageReportType == "clover":
-                coverage.clover_report(report,
-                    open('output/coverage/clover.xml', 'w'))
-
-    def run(self, coverageReportType):
+            coverage.generate_reports('output/coverage', report, 
+                                      self._coverageData)
+            
+    def run(self):
         '''
         Execute the bob plan.
         '''
@@ -214,7 +207,7 @@ class BobMain(object):
 
                 # We need to write out the test results early since
                 # some failed
-                self._writeArtifacts(coverageReportType)
+                self._writeArtifacts()
                 print 'Aborting due to failed tests'
                 return 4
             else:
@@ -222,7 +215,7 @@ class BobMain(object):
                 coverage.merge(self._coverageData, batch.getCoverageData())
 
         # Output test and coverage results
-        self._writeArtifacts(coverageReportType)
+        self._writeArtifacts()
 
         return 0
 
@@ -260,12 +253,8 @@ def main(args):
 
     try:
         plan = args[0]
-        if len(args) > 1:
-            coverageReportType = args[1]
-        else:
-            coverageReportType = 'simple'
     except IndexError:
-        print >>sys.stderr, 'Usage: %s <plan file or URI> [coverage report type]' % sys.argv[0]
+        print >>sys.stderr, 'Usage: %s <plan file or URI>' % sys.argv[0]
         return 1
 
     addRootLogger()
@@ -277,7 +266,7 @@ def main(args):
     sys.excepthook = sys.__excepthook__
 
     _main.readPlan(plan)
-    return _main.run(coverageReportType)
+    return _main.run()
 
 if __name__ == '__main__':
     sys.exit(main(sys.argv[1:]))
