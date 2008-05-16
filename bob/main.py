@@ -172,8 +172,12 @@ class BobMain(object):
 
         if self._coverageData:
             report = coverage.process(self._coverageData)
-            coverage.generate_reports('output/coverage', report, 
-                                      self._coverageData)
+            # build the coverage data objects
+            cdo = coverage.CoverageData.parseCoverageData(report)
+            # TODO: merge pickle/old school data into coverage data obj
+            cdo.pickleCoverageDict = self._coverageData
+            cdo.oldSchoolCoverageData = report
+            coverage.generate_reports('output/coverage', cdo)
             
     def run(self):
         '''

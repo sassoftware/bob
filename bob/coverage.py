@@ -136,30 +136,24 @@ def dump(cover_data, dirName, fileName='pickle'):
 
     cPickle.dump(cover_data, fileobj, protocol=2)
     
-def generate_reports(dirName, oldSchoolCoverageData, pickleDict):
+def generate_reports(dirName, coverageData):
     """
     Generate all the coverage reports
     @param dirName: the directory to create the reports in
-    @param oldSchoolCoverageData: the old-school coverage data as returned by
-        coverage.process
-    @param pickleDict: a dict for pickle to dump.  THis should eventually go
-        away.
+    @param coverageData: a CoverageData object
     """
-    
-    # get the coverage data object
-    coverageData = CoverageData.parseCoverageData(oldSchoolCoverageData)
-    
+        
     # create the dir
     os.makedirs(dirName)
     
     # pickle dump
     # TODO: dump the coverage data object instead of dict?
-    dump(pickleDict, dirName)
+    dump(coverageData.pickleCoverageDict, dirName)
     
     # simple reports
     # TODO: change to subclass of CoverageReport and use coverage data object
-    simple_report(oldSchoolCoverageData, dirName)
-    simple_report(oldSchoolCoverageData, dirName, 'simple.txt')
+    simple_report(coverageData.oldSchoolCoverageData, dirName)
+    simple_report(coverageData.oldSchoolCoverageData, dirName, 'simple.txt')
     
     # clover report
     CoverageReportClover(dirName, 'clover.xml', coverageData).writeReport()
@@ -196,7 +190,10 @@ def testGenReports():
     cov['raa/web/__init__.py'] = (254,194)
     cov['raa/web/web.py'] = (25,19)
     
-    generate_reports('/tmp/reports', (cov, (150, 105)), dict(data="foo"))
+    covData =  CoverageData.parseCoverageData((cov, (150, 105)))
+    covData.pickleCoverageDict = dict(foo='bar')
+    covData.oldSchoolCoverageData = (cov, (150, 105))
+    generate_reports('/tmp/reports', covData)
     
 def testSimpleReport():
     cov = dict()
@@ -470,8 +467,11 @@ class CoverageData:
     """
     
     def __init__(self):
+        # TODO: remove pickle coverage dict and old school coverage data
         self.coveragePackageData = []
         self.coverageTotalsData = CoverageTotalsData()
+        self.pickleCoverageDict = {}
+        self.oldSchoolCoverageData = () # as created by process()
     
     @staticmethod
     def parseCoverageData(data):
