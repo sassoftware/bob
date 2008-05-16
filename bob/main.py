@@ -93,7 +93,8 @@ class BobMain(object):
             packageName = sourceName.split(':')[0]
             targetConfig = self._targetConfigs.get(packageName, None)
 
-            targetPackages.append(BobPackage(sourceName, sourceVersion, targetConfig))
+            targetPackages.append(BobPackage(sourceName, sourceVersion, 
+                                             targetConfig))
 
         return targetPackages
 

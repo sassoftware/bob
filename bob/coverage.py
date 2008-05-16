@@ -348,9 +348,10 @@ class CoverageTotalsData:
         """
         Display coverage totals data in human readable form
         """
-        print "\ttotal files=%d, total statements=%d, total covered statements=%d" % \
-                (self.totalFiles, self.totalStatements,
-                 self.totalCoveredStatements)
+        print "\ttotal files=%d, total statements=%d, " \
+              "total covered statements=%d" % \
+               (self.totalFiles, self.totalStatements,
+                self.totalCoveredStatements)
                             
 class CoverageFileData:
     """
