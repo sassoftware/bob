@@ -151,7 +151,7 @@ def clover_report((covered, (total_statements, total_executed)),
     print >>fileobj, '<coverage generated="%d" clover="1.3.13">' % theTime
     
     print >>fileobj, '\t<project timestamp="%d">' % theTime
-    print >> fileobj, '\t\t<metrics conditionals="4" coveredmethods="10" methods="13" classes="5" elements="64" coveredelements="55" coveredconditionals="3" ncloc="8500" loc="%d" statements="%d" coveredstatements="%d" packages="%d" files="%d" />' % (projStmts, projStmts, projCovStmts, numPackages, projFiles)
+    print >> fileobj, '\t\t<metrics conditionals="0" coveredmethods="0" methods="0" classes="0" elements="0" coveredelements="0" coveredconditionals="0" ncloc="%d" loc="%d" statements="%d" coveredstatements="%d" packages="%d" files="%d" />' % (projStmts, projStmts, projStmts, projCovStmts, numPackages, projFiles)
     
     for pkg in pkgData:
         
