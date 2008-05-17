@@ -93,7 +93,8 @@ class BobMain(object):
             packageName = sourceName.split(':')[0]
             targetConfig = self._targetConfigs.get(packageName, None)
 
-            targetPackages.append(BobPackage(sourceName, sourceVersion, targetConfig))
+            targetPackages.append(BobPackage(sourceName, sourceVersion, 
+                                             targetConfig))
 
         return targetPackages
 
@@ -169,15 +170,15 @@ class BobMain(object):
         if self._testSuite.tests:
             self._testSuite.write_junit(open('output/tests/junit.xml', 'w'))
 
-        os.makedirs('output/coverage')
         if self._coverageData:
             report = coverage.process(self._coverageData)
-            coverage.dump(self._coverageData,
-                open('output/coverage/pickle', 'w'))
-            coverage.simple_report(report, sys.stdout)
-            coverage.simple_report(report,
-                open('output/coverage/report.txt', 'w'))
-
+            # build the coverage data objects
+            cdo = coverage.CoverageData.parseCoverageData(report)
+            # TODO: merge pickle/old school data into coverage data obj
+            cdo.pickleCoverageDict = self._coverageData
+            cdo.oldSchoolCoverageData = report
+            coverage.generate_reports('output/coverage', cdo)
+            
     def run(self):
         '''
         Execute the bob plan.
