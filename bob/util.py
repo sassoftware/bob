@@ -10,7 +10,6 @@ Utility functions
 
 import logging
 import md5
-import time
 
 import conary.conaryclient
 import rmake.cmdline.helper
@@ -138,27 +137,3 @@ class StatusOnlyDisplay(rmake.cmdline.monitor.JobLogDisplay):
     def _trovePreparingChroot(self, (jobId, troveTuple), host, path):
         '''Don't care about resolving/installing chroot'''
         pass
-
-
-def timeIt(func):
-    '''
-    A decorator that times how long a function takes to execute, and
-    logs the result as a debug message on completion.
-    '''
-
-    def wrapper(*args, **kwargs):
-        start = time.time()
-        rv = func(*args, **kwargs)
-        stop = time.time()
-
-        log.debug('Call %s.%s : %.03f',
-            func.__module__,
-            func.__name__,
-            stop - start)
-
-        return rv
-
-    wrapper.__module__ = func.__module__
-    wrapper.__name__ = func.__name__
-    wrapper.__wrapped_func__ = func
-    return wrapper

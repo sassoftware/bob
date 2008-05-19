@@ -45,18 +45,12 @@ class BobPackage(object):
     def __hash__(self):
         return hash((self._name, self._upstreamVersion))
 
-    def __repr__(self):
-        return 'BobPackage(%s=%s)' % (self._name, self._upstreamVersion)
-
     # Name
     def getName(self):
         return self._name
 
     def getPackageName(self):
         return self._name.split(':')[0]
-
-    def getRecipeName(self):
-        return self.getPackageName() + '.recipe'
 
     # Upstream version
     def getUpstreamVersion(self):
@@ -113,7 +107,7 @@ class BobPackage(object):
     def getDownstreamSourceTrove(self, helper):
         if not self._trove:
             self._downstreamTrove = helper.getRepos().getTrove(
-                *self.getDownstreamNameVersionFlavor())
+                self.getName(), self.getDownstreamVersion(), Flavor())
         return self._downstreamTrove
 
     def deleteDownstreamSourceTrove(self):

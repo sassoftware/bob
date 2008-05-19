@@ -5,11 +5,6 @@
 # All rights reserved.
 #
 
-import os, sys
-
-# this lets us run bin/bob from a checkout
-if os.path.exists(os.path.join(os.getcwd(), 'bob', '__init__.py')):
-    sys.path.insert(0, os.getcwd())
-
+import sys
 from bob import main
 sys.exit(main.main(sys.argv[1:]))
