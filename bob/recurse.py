@@ -12,14 +12,16 @@ to build.
 import logging
 
 from conary.build.grouprecipe import findSourcesForGroup
+from conary.build.loadrecipe import RecipeLoaderFromSourceTrove
+from conary.build.use import setBuildFlagsFromFlavor
+from conary.conarycfg import ConaryConfiguration
 from conary.deps import deps
 from rmake.cmdline.buildcmd import _filterListByMatchSpecs
-from rmake.lib import recipeutil
 
 from bob.cook import Batch
 from bob.flavors import expand_targets
-from bob.mangle import prepareTrove
 from bob.errors import DependencyLoopError
+from bob.shadow import ShadowBatch
 from bob.trove import BobPackage
 
 
@@ -33,13 +35,22 @@ def recurseGroupInstance(helper, bobPackage, buildFlavor):
     useful.
     '''
 
-    _, recipeObj, _ = recipeutil.loadRecipe(
-        helper.getRepos(),
-        bobPackage.getName(), bobPackage.getDownstreamVersion(), buildFlavor,
-        bobPackage.getDownstreamSourceTrove(helper),
-        installLabelPath=helper.cfg.installLabelPath,
-        buildLabel=helper.plan.sourceLabel,
-        cfg=helper.cfg)
+    setBuildFlagsFromFlavor(bobPackage.getPackageName(), buildFlavor,
+        error=False)
+
+    sourceTrove = bobPackage.getDownstreamSourceTrove(helper)
+    loader = RecipeLoaderFromSourceTrove(sourceTrove, helper.getRepos(),
+        helper.cfg, ignoreInstalled=True)
+    recipeClass = loader.getRecipe()
+
+    buildLabel = helper.plan.sourceLabel
+    macros = {  'buildlabel': buildLabel.asString(),
+                'buildbranch': bobPackage.getDownstreamVersion().
+                    branch().parentBranch().asString()}
+    recipeObj = recipeClass(helper.getRepos(), helper.cfg,
+        buildLabel, buildFlavor, None, extraMacros=macros)
+    recipeObj.sourceVersion = bobPackage.getDownstreamVersion()
+    recipeObj.setup()
 
     for n, v, f in findSourcesForGroup(
       helper.getRepos(), recipeObj):
@@ -58,6 +69,8 @@ def getPackagesFromTargets(targetPackages, helper, mangleData, targetConfigs):
     '''
 
     buildPackages = dict((x.getName(), x) for x in targetPackages)
+    targetShadows = ShadowBatch()
+    childShadows = ShadowBatch()
 
     def _build(name, version, flavor, parent=None):
         '''
@@ -80,7 +93,7 @@ def getPackagesFromTargets(targetPackages, helper, mangleData, targetConfigs):
 
         # Mangle if needed
         if not package.hasDownstreamVersion():
-            prepareTrove(package, mangleData, helper)
+            childShadows.addPackage(package)
 
         # Add new flavor(s) to package
         package.addFlavors([flavor])
@@ -92,38 +105,45 @@ def getPackagesFromTargets(targetPackages, helper, mangleData, targetConfigs):
 
         return buildPackages[name]
 
+    # First, mark all targets for building
     for package in targetPackages:
         buildFlavors = expand_targets(package.getTargetConfig())
-        
-        # Mark the target for building first
         package.addFlavors(buildFlavors)
-        if not package.hasDownstreamVersion():
-            prepareTrove(package, mangleData, helper)
+        targetShadows.addPackage(package)
+    
+    # Shadow and mangle all targets
+    targetShadows.shadow(helper, mangleData)
 
-        # If this is a group, recurse through it
-        if package.getName().startswith('group-'):
-            # Check against recurseTroveRule to see if we should follow
-            if not _filterListByMatchSpecs(helper.cfg.reposName,
-              helper.plan.recurseTroveRule,
-              [package.getDownstreamNameVersionFlavor()]):
-                log.debug('Not following %s due to resolveTroveRule',
-                    package.getName())
-                continue
+    # Now go back and recurse through the groups
+    for package in targetPackages:
+        if not package.getName().startswith('group-'):
+            continue
 
-            log.debug('Following %s=%s' % package.getDownstreamNameVersion())
+        # Check against recurseTroveRule to see if we should follow
+        if not _filterListByMatchSpecs(helper.cfg.reposName,
+          helper.plan.recurseTroveRule,
+          [package.getDownstreamNameVersionFlavor()]):
+            log.debug('Not following %s due to resolveTroveRule',
+                package.getName())
+            continue
 
-            for buildFlavor in buildFlavors:
-                # For every build flavor, recurse the group and get a
-                # list of tuples to build.
-                for newName, newVersion, newBuildFlavor in \
-                  recurseGroupInstance(helper, package, buildFlavor):
-                    # Convert the tuple to a BobPackage
-                    _build(newName, newVersion, newBuildFlavor,
-                        parent=package.getName())
+        log.debug('Following %s=%s' % package.getDownstreamNameVersion())
 
-            # Clean up the Trove object loaded in recurseGroupInstance
-            # so it doesn't waste memory
-            package.deleteDownstreamSourceTrove()
+        for buildFlavor in package.getFlavors():
+            # For every build flavor, recurse the group and get a
+            # list of tuples to build.
+            for newName, newVersion, newBuildFlavor in \
+              recurseGroupInstance(helper, package, buildFlavor):
+                # Convert the tuple to a BobPackage
+                _build(newName, newVersion, newBuildFlavor,
+                    parent=package.getName())
+
+        # Clean up the Trove object loaded in recurseGroupInstance
+        # so it doesn't waste memory
+        package.deleteDownstreamSourceTrove()
+
+    # Shadow and mangle all child troves
+    childShadows.shadow(helper, mangleData)
 
     return buildPackages.values()
 

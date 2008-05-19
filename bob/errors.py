@@ -29,6 +29,7 @@ class BobError(RuntimeError):
         params = ', '.join('%s=%r' % x for x in self._kwargs.iteritems())
         return '%s(%s)' % (self.__class__, params)
 
+
 class CommitFailedError(BobError):
     'rMake job %(jobId)d failed to commit: %(why)s'
     _params = ['jobId', 'why']
