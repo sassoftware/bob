@@ -184,6 +184,7 @@ class BobMain(object):
         Execute the bob plan.
         '''
 
+        log.info('Initializing build')
         self._cleanArtifacts()
         self._configure()
         self._freezeHg()

@@ -68,6 +68,8 @@ def getPackagesFromTargets(targetPackages, helper, mangleData, targetConfigs):
     set and return a list of additional I{BobPackage}s to build.
     '''
 
+    log.info('Loading troves')
+
     buildPackages = dict((x.getName(), x) for x in targetPackages)
     targetShadows = ShadowBatch()
     childShadows = ShadowBatch()
@@ -127,7 +129,7 @@ def getPackagesFromTargets(targetPackages, helper, mangleData, targetConfigs):
                 package.getName())
             continue
 
-        log.debug('Following %s=%s' % package.getDownstreamNameVersion())
+        log.info('Following %s' % package.getPackageName())
 
         for buildFlavor in package.getFlavors():
             # For every build flavor, recurse the group and get a
