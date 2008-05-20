@@ -1,4 +1,4 @@
-export VERSION=3.01
+export VERSION=3.1
 
 libdir=/usr/lib
 bindir=/usr/bin

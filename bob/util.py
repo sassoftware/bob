@@ -162,3 +162,19 @@ def timeIt(func):
     wrapper.__name__ = func.__name__
     wrapper.__wrapped_func__ = func
     return wrapper
+
+
+def findFile(troveCs, wantPath):
+    '''
+    Locate a path I{wantPath} in a trove changeset I{troveCs}.
+    Return I{(pathId, path, fileId, fileVer}) or raise I{RuntimeError}
+    if the path was not found.
+    '''
+
+    for pathId, path, fileId, fileVer in troveCs.getNewFileList():
+        if path == wantPath:
+            return pathId, path, fileId, fileVer
+
+    raise RuntimeError('File "%s" not found in trove %s=%s[%s]',
+        wantPath, troveCs.getName(), troveCs.getNewVersion(),
+        troveCs.getNewFlavor())
