@@ -8,6 +8,7 @@
 Tools for manipulating recipes and source troves.
 '''
 
+import copy
 import logging
 import os
 import shutil
@@ -157,9 +158,30 @@ class ShadowBatch(object):
                 # An old version was found.
                 assert len(results[query]) == 1
                 oldVersion = results[query][0][1]
+                parentVersion = package.getUpstreamVersion()
 
-                # Check that it is on the correct branch.
-                if oldVersion.branch() == targetBranch:
+                # In all cases, the old trove must be on the same
+                # branch
+                saneBranch = oldVersion.branch() == targetBranch
+
+                # In sibling clones, the trailing revision up to the
+                # source's parent's shadow count must be identical.
+                saneRevision = True
+                if package.isSiblingClone() and saneBranch:
+                    oldRevision = oldVersion.trailingRevision()
+                    oldCount = copy.deepcopy(oldRevision.sourceCount)
+
+                    parentRevision = parentVersion.trailingRevision()
+                    parentCount = copy.deepcopy(parentRevision.sourceCount)
+
+                    parentLength = parentVersion.shadowLength() - 1
+                    parentCount.truncateShadowCount(parentLength)
+                    oldCount.truncateShadowCount(parentLength)
+
+                    saneRevision = oldCount == parentCount
+
+                # If all preconditions match, use the old version
+                if saneBranch and saneRevision:
                     newVersion = oldVersion.copy()
                     newVersion.incrementSourceCount()
 
@@ -276,11 +298,8 @@ class ShadowBatch(object):
 
 
 def _getTargetBranch(package, targetLabel):
-    config = package.getTargetConfig()
-    siblingClone = config and config.siblingClone
-
     sourceBranch = package.getUpstreamVersion().branch()
-    if not siblingClone:
+    if not package.isSiblingClone():
         return sourceBranch.createShadow(targetLabel)
     else:
         return sourceBranch.createSibling(targetLabel)
@@ -293,19 +312,17 @@ def _createVersion(package, helper, version):
     '''
 
     targetLabel = helper.plan.targetLabel
-    config = package.getTargetConfig()
-    siblingClone = config and config.siblingClone
 
     sourceVersion = package.getUpstreamVersion()
     sourceBranch = sourceVersion.branch()
     sourceRevision = sourceVersion.trailingRevision()
 
-    if siblingClone:
-        # Siblings should just start with -1. Use -0 here and
-        # increment it below.
-        newBranch = sourceBranch.createSibling(helper.plan.targetLabel)
-        newRevision = Revision('%s-0' % version)
-        newVersion = newBranch.createVersion(newRevision)
+    if package.isSiblingClone():
+        # Siblings should start with the parent version
+        assert sourceVersion.hasParentVersion()
+        assert sourceVersion.trailingRevision().version == version
+        parentVersion = sourceVersion.parentVersion()
+        newVersion = parentVersion.createShadow(targetLabel)
     elif sourceRevision.version == version:
         # If shadowing and the upstream versions match, then start
         # with the source version's source count.

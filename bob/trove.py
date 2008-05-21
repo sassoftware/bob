@@ -102,6 +102,9 @@ class BobPackage(object):
     def getTargetConfig(self):
         return self._targetConfig
 
+    def isSiblingClone(self):
+        return self._targetConfig and self._targetConfig.siblingClone
+
     # Children
     def getChildren(self):
         return self._children
