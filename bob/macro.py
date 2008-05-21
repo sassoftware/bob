@@ -8,7 +8,6 @@
 Mechanism for expanding macros from a trove context.
 '''
 
-import copy
 import logging
 import time
 

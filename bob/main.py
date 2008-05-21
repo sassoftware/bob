@@ -155,8 +155,7 @@ class BobMain(object):
             else:
                 uri %= self._macros
                 revision = hg.get_tip(uri)
-            self._hg[name] = (uri % self._macros
-                revision % self._macros)
+            self._hg[name] = (uri, revision)
 
     def _registerCommand(self, *args, **kwargs):
         'Fake rMake hook'
