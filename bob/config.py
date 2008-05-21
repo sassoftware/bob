@@ -24,7 +24,7 @@ class BobTargetSection(cfg.ConfigSection):
     flavor                  = CfgList(CfgString)
     macros                  = CfgDict(CfgString)
     siblingClone            = (CfgBool, False)
-    version                 = CfgString
+    version                 = CfgString             # macros supported
     sourceLabel             = CfgLabel
 
 class BobWikiSection(cfg.ConfigSection):
@@ -43,9 +43,10 @@ class BobConfig(cfg.SectionedConfigFile):
     # source
     sourceLabel             = CfgLabel
     macros                  = CfgDict(CfgString)
-    resolveTroves           = CfgList(CfgQuotedLineList(CfgTroveSpec))
+    resolveTroves           = CfgList(CfgQuotedLineList(
+                                CfgTroveSpec))      # macros supported
     resolveTrovesOnly       = (CfgBool, False)
-    hg                      = CfgDict(CfgString)
+    hg                      = CfgDict(CfgString)    # macros supported
 
     # build
     installLabelPath        = CfgInstallLabelPath

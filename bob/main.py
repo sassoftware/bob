@@ -21,6 +21,7 @@ from bob import hg
 from bob import recurse
 from bob import version
 from bob.errors import JobFailedError, TestFailureError
+from bob.macro import substResolveTroves
 from bob.test import TestSuite
 from bob.trove import BobPackage
 from bob.util import ClientHelper
@@ -38,6 +39,7 @@ class BobMain(object):
         self._cfg = config.BobConfig()
         self._helper = ClientHelper(bcfg, self._cfg, pluginmgr)
         self._targetConfigs = {}
+        self._macros = {}
         
         # repo info
         self._hg = {}
@@ -103,13 +105,14 @@ class BobMain(object):
         Pre-build setup
         '''
         cfg = self._helper.cfg
+        self._macros = Macros(self._cfg.macros)
 
         cfg.strictMode = True
         cfg.copyInConary = cfg.copyInConfig = False
 
         # These options translate directly from the plan to rMake
         # or conary
-        for x in ('resolveTroves', 'resolveTrovesOnly', 'shortenGroupFlavors',
+        for x in ('resolveTrovesOnly', 'shortenGroupFlavors',
           'matchTroveRule'):
             cfg[x] = self._cfg[x]
 
@@ -117,18 +120,19 @@ class BobMain(object):
         cfg.buildLabel = self._cfg.targetLabel
         cfg.installLabelPath = [self._cfg.sourceLabel] + \
             self._cfg.installLabelPath
+        cfg.resolveTroves = substResolveTroves(self._cfg.resolveTroves,
+            self._macros)
         cfg.resolveTroveTups = buildcmd._getResolveTroveTups(
             cfg, self._helper.getRepos())
 
         cfg.initializeFlavors()
 
         # Set up global macros
-        _macros = Macros(self._cfg.macros)
         for key, value in self._cfg.macros.iteritems():
             if key in self._cfg.skipMacros:
                 continue
             try:
-                cfg.macros[key] = value % _macros
+                cfg.macros[key] = value % self._macros
             except MacroKeyError:
                 # Maybe requires a build-time macro
                 pass
@@ -143,11 +147,16 @@ class BobMain(object):
         '''
 
         for name, uri in self._cfg.hg.iteritems():
+            name %= self._macros
             if ' ' in uri:
                 uri, revision = uri.split(' ', 1)
+                uri %= self._macros
+                revision %= self._macros
             else:
+                uri %= self._macros
                 revision = hg.get_tip(uri)
-            self._hg[name] = (uri, revision)
+            self._hg[name] = (uri % self._macros
+                revision % self._macros)
 
     def _registerCommand(self, *args, **kwargs):
         'Fake rMake hook'

@@ -8,6 +8,7 @@
 Mechanism for expanding macros from a trove context.
 '''
 
+import copy
 import logging
 import time
 
@@ -36,3 +37,22 @@ def expand(raw, package):
 
     _macros = Macros(macros)
     return raw % _macros
+
+
+def substResolveTroves(resolveTroves, macros):
+    '''
+    Substitute C{macros} into the config item C{resolveTroves}.
+
+    @type  resolveTroves: CfgList(CfgQuotedLineList(CfgTroveSpec))
+    @type  macros: dict or Macros
+    '''
+
+    ret = []
+    for bucket in resolveTroves:
+        newBucket = []
+        for troveSpec in bucket:
+            substSpec = [x and (x % macros) or x for x in troveSpec]
+            newBucket.append(tuple(substSpec))
+        ret.append(newBucket)
+
+    return ret
