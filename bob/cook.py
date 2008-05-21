@@ -9,6 +9,7 @@ Build, commit, and process troves in "batches"
 '''
 
 import logging
+import time
 
 from conary.build.macros import Macros
 from rmake.cmdline import monitor
@@ -135,6 +136,7 @@ class Batch(object):
                 '(probably to the wrong place)', jobId)
             raise JobFailedError(jobId=jobId, why='Job already committing')
 
+        startTime = time.time()
         log.info('Starting commit of job %d', jobId)
         self._helper.getrMakeClient().startCommit([jobId])
 
@@ -145,9 +147,22 @@ class Batch(object):
             raise
         else:
             self._helper.getrMakeClient().commitSucceeded(mapping)
+            log.info('Commit of job %d completed in %.02f seconds',
+                jobId, time.time() - startTime)
 
     def getTestSuite(self):
+        '''
+        Retrieve testsuite data compiled after a batch is run.
+
+        @rtype: L{TestSuite<bob.test.TestSuite>}
+        '''
         return self._testSuite
 
     def getCoverageData(self):
+        '''
+        Retrieve coverage data compiled after a batch is run.
+
+        @rtype: C{dict([(filename,
+                (set([statements]), set([missing])))])}
+        '''
         return self._coverageData
