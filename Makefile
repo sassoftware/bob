@@ -5,6 +5,8 @@ bindir=/usr/bin
 
 generated_files = bob/version.py
 
+.PHONY: $(generated_files)
+
 all: $(generated_files)
 
 install: $(generated_files)
