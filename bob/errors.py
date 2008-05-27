@@ -43,3 +43,7 @@ class JobFailedError(BobError):
 
 class TestFailureError(BobError):
     'A testsuite has failed'
+
+class TroveNotShadowError(BobError):
+    'Trove %(name)s=%(version)s must be a shadow in order to sibling clone'
+    _params = ['name', 'version']

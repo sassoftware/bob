@@ -10,6 +10,8 @@ Internal representation of a build trove
 
 from conary.deps.deps import Flavor
 
+from bob.errors import TroveNotShadowError
+
 
 class BobPackage(object):
     '''
@@ -41,6 +43,11 @@ class BobPackage(object):
         self._flavors = set()
         self._mangleData = None
         self._trove = None
+
+        if self.isSiblingClone() \
+          and not self._upstreamVersion.hasParentVersion():
+            raise TroveNotShadowError(name=self.getName(),
+                version=self.getUpstreamVersion())
 
     def __hash__(self):
         return hash((self._name, self._upstreamVersion))
