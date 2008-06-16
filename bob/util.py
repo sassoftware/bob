@@ -10,6 +10,7 @@ Utility functions
 
 import logging
 import md5
+import signal
 import time
 
 import conary.conaryclient
@@ -147,8 +148,9 @@ def timeIt(func):
     '''
 
     def wrapper(*args, **kwargs):
+        '''inner function'''
         start = time.time()
-        rv = func(*args, **kwargs)
+        returnValue = func(*args, **kwargs)
         stop = time.time()
 
         log.debug('Call %s.%s : %.03f',
@@ -156,10 +158,10 @@ def timeIt(func):
             func.__name__,
             stop - start)
 
-        return rv
+        return returnValue
 
     wrapper.__module__ = func.__module__
-    wrapper.__name__ = func.__name__
+    wrapper.__name__ = func.__name__ # stupid -- pylint: disable-msg=W0621
     wrapper.__wrapped_func__ = func
     return wrapper
 
@@ -178,3 +180,45 @@ def findFile(troveCs, wantPath):
     raise RuntimeError('File "%s" not found in trove %s=%s[%s]',
         wantPath, troveCs.getName(), troveCs.getNewVersion(),
         troveCs.getNewFlavor())
+
+
+def partial(func, *args, **kwargs):
+    '''
+    Return a new function that when called will call C{func} with
+    arguments C{args} and C{kwargs} pre-applied. Positional arguments
+    given to the new function will be appended to C{args}, and keyword
+    arguments will update and replace those in C{kwargs}.
+    '''
+    def wrapper(*realargs, **realkwargs):
+        '''inner function'''
+        newkwargs = kwargs.copy()
+        newkwargs.update(realkwargs)
+        return func(*(args + realargs), **newkwargs)
+    wrapper.__wrapped_func__ = func
+    wrapper.args = args
+    wrapper.kwargs = kwargs
+    return wrapper
+
+_STOP_SIGNALS = [signal.SIGINT, signal.SIGQUIT, signal.SIGTERM]
+_STOP_HANDLERS = [signal.SIG_DFL]
+def pushStopHandler(handler):
+    '''
+    Push a signal handler onto the stack and set that handler for
+    all "stop" signals.
+    '''
+    _STOP_HANDLERS.append(handler)
+    for signum in _STOP_SIGNALS:
+        signal.signal(signum, handler)
+    return handler
+
+
+def popStopHandler():
+    '''
+    Pop the current top-most signal handler off the stack and return
+    it. Restore the next-top-most handler for all "stop" signals.
+    '''
+    oldHandler = _STOP_HANDLERS.pop()
+    assert _STOP_HANDLERS
+    for signum in _STOP_SIGNALS:
+        signal.signal(signum, _STOP_HANDLERS[-1])
+    return oldHandler

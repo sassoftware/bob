@@ -9,6 +9,7 @@ Build, commit, and process troves in "batches"
 '''
 
 import logging
+import sys
 import time
 
 from conary.build.macros import Macros
@@ -19,10 +20,21 @@ from bob import flavors
 from bob import test
 from bob.errors import JobFailedError, TestFailureError
 from bob.util import ContextCache, StatusOnlyDisplay
+from bob.util import partial, pushStopHandler, popStopHandler
 
 
 log = logging.getLogger('bob.cook')
 
+
+def stopJob(batch, signum, frame):
+    '''
+    Signal handler used during a cook job that will stop the job
+    and exit.
+    '''
+
+    log.error('Caught signal %d during build; stopping job', signum)
+    batch.stop()
+    sys.exit('Signalled stop')
 
 
 class Batch(object):
@@ -39,6 +51,9 @@ class Batch(object):
         # setup
         self._contextCache = ContextCache(self._helper.cfg)
         self._troves = set()
+
+        # job state
+        self._jobId = None
 
         # results
         self._testSuite = None
@@ -99,6 +114,11 @@ class Batch(object):
         jobId = self._helper.getrMakeClient().buildJob(job)
         log.info('Job %d started', jobId)
 
+        # Set a signal handler so we can stop the job if we get
+        # interrupted
+        self._jobId = jobId
+        pushStopHandler(partial(stopJob, self))
+
         # Watch build (to stdout)
         self._helper.callClientHook('client_preCommand', main,
             None, (self._helper.cfg, self._helper.cfg),
@@ -107,6 +127,10 @@ class Batch(object):
             self._helper.getrMakeHelper(), None)
         monitor.monitorJob(self._helper.getrMakeClient(), jobId,
             exitOnFinish=True, displayClass=StatusOnlyDisplay)
+
+        # Remove the signal handler now that the job is done
+        self._jobId = None
+        popStopHandler()
 
         # Check for error condition
         job = self._helper.getrMakeClient().getJob(jobId)
@@ -149,6 +173,13 @@ class Batch(object):
             self._helper.getrMakeClient().commitSucceeded(mapping)
             log.info('Commit of job %d completed in %.02f seconds',
                 jobId, time.time() - startTime)
+
+    def stop(self):
+        '''
+        Stop the currently running build.
+        '''
+        if self._jobId:
+            self._helper.getrMakeHelper().stopJob(self._jobId)
 
     def getTestSuite(self):
         '''

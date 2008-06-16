@@ -24,7 +24,7 @@ from bob.errors import JobFailedError, TestFailureError
 from bob.macro import substResolveTroves
 from bob.test import TestSuite
 from bob.trove import BobPackage
-from bob.util import ClientHelper
+from bob.util import ClientHelper, pushStopHandler
 
 log = logging.getLogger('bob.main')
 
@@ -258,6 +258,17 @@ def addRootLogger():
     for handler in conary_log.handlers:
         conary_log.removeHandler(handler)
 
+
+def stop(signum, frame):
+    '''
+    Signal handler to log a message then quit. Replaced by
+    L{cook.stopJob<bob.cook.stopJob>} during cooks.
+    '''
+
+    log.error('Caught signal %d; aborting.', signum)
+    sys.exit('Signalled stop')
+
+
 def main(args):
     rev = version.revision and ' (revision %s)' % version.revision or ''
     print 'Bob the Builder version %s%s' % (version.version, rev)
@@ -270,6 +281,8 @@ def main(args):
     except IndexError:
         print >>sys.stderr, 'Usage: %s <plan file or URI>' % sys.argv[0]
         return 1
+
+    pushStopHandler(stop)
 
     addRootLogger()
 
