@@ -10,6 +10,7 @@ Internal representation of a build trove
 
 from conary.deps.deps import Flavor
 
+from bob.config import BobTargetSection
 from bob.errors import TroveNotShadowError
 
 
@@ -24,6 +25,9 @@ class BobPackage(object):
 
     def __init__(self, name, upstreamVersion, targetConfig=None):
         assert name.endswith(':source')
+
+        if targetConfig is None:
+            targetConfig = BobTargetSection(None)
 
         self._name = name
         self._targetConfig = targetConfig
@@ -173,7 +177,7 @@ class BobPackage(object):
     def getTargetConfig(self):
         '''
         Get the configuration section specific to this package, or
-        C{None} if there is no configuration.
+        an empty configuration section if none was provided.
         '''
         return self._targetConfig
 
