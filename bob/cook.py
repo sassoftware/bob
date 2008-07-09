@@ -74,10 +74,7 @@ class Batch(object):
         macros = {}
         config = bobTrove.getTargetConfig()
 
-        if config is None:
-            commit = True
-        else:
-            commit = not config.noCommit
+        commit = not config.noCommit
         if self._commit is None:
            self._commit = commit
         elif self._commit != commit:
@@ -94,13 +91,14 @@ class Batch(object):
                     macros[key] = value % _macros
 
         # Reduce the set of flavors to build
+        oldFlavors = bobTrove.getFlavors()
         newFlavors = flavors.reduce_flavors(bobTrove.getPackageName(),
-            bobTrove.getTargetConfig(), bobTrove.getFlavors())
+            config, oldFlavors)
 
-        if len(newFlavors) != len(bobTrove.getFlavors()):
+        if len(newFlavors) != len(oldFlavors):
             log.debug('Package %s would be built in %d flavors; '
                 'now built in %d flavors', bobTrove.getPackageName(),
-                len(bobTrove.getFlavors()), len(newFlavors))
+                len(oldFlavors), len(newFlavors))
         else:
             log.debug('Package %s will be built in %d flavors',
                 bobTrove.getPackageName(), len(newFlavors))
