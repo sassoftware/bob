@@ -208,7 +208,6 @@ class BobMain(object):
             self._helper, mangleData, self._targetConfigs)
 
         # Run and commit each batch
-
         for batch in recurse.getBatchFromPackages(self._helper, allPackages):
             try:
                 batch.run(self)

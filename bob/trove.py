@@ -142,9 +142,6 @@ class BobPackage(object):
             raise ValueError('Downstream version not yet allocated')
         return self._name, self._downstreamVersion, Flavor()
 
-    def setFlavors(self, flavors):
-        self._flavors = set(flavors)
-
     # Flavors
     def getFlavors(self):
         '''
@@ -162,6 +159,15 @@ class BobPackage(object):
         @type  flavors: iterable
         '''
         self._flavors.update(flavors)
+
+    def setFlavors(self, flavors):
+        '''
+        Replace the set of flavors for this package to be built with.
+
+        @param flavors: A set of new flavors to replace the build list
+        @type  flavors: iterable
+        '''
+        self._flavors = set(flavors)
 
     # Target configuration
     def getTargetConfig(self):

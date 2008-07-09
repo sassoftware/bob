@@ -80,8 +80,13 @@ class Batch(object):
             commit = not config.noCommit
         if self._commit is None:
            self._commit = commit
-        else:
-            assert(self._commit == commit)
+        elif self._commit != commit:
+            senseA = commit and "wants" or "does not want"
+            senseB = commit and "do not" or "do"
+            log.error("Package %s %s to commit, but existing packages "
+                "in batch %s", bobTrove.getPackageName(), senseA, senseB)
+            log.error("Either all packages in a batch must commit, or none can")
+            raise RuntimeError("Can't commit part of a batch")
 
         if config:
             for key, value in config.macros.iteritems():
@@ -163,11 +168,13 @@ class Batch(object):
             job)
         print 'Batch results:', self._testSuite.describe()
 
-        # Bail out without committing if tests failed
+        # Bail out without committing if tests failed ...
         if not self._testSuite.isSuccessful():
             log.error('Some tests failed, aborting')
             raise TestFailureError()
-        if self._noCommit:
+
+        # ... or if all packages are set not to commit
+        if self._commit is False:
             return
 
         # Commit to target repository
