@@ -142,6 +142,9 @@ class BobPackage(object):
             raise ValueError('Downstream version not yet allocated')
         return self._name, self._downstreamVersion, Flavor()
 
+    def setFlavors(self, flavors):
+        self._flavors = set(flavors)
+
     # Flavors
     def getFlavors(self):
         '''

@@ -26,6 +26,8 @@ class BobTargetSection(cfg.ConfigSection):
     siblingClone            = (CfgBool, False)
     version                 = CfgString             # macros supported
     sourceLabel             = CfgLabel
+    serializeFlavors        = CfgBool
+    noCommit                = CfgBool
 
 class BobWikiSection(cfg.ConfigSection):
     '''

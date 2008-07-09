@@ -9,6 +9,7 @@ Tools for recursing through a set of targets, and for preparing batches
 to build.
 '''
 
+import copy
 import logging
 
 from conary.build.grouprecipe import findSourcesForGroup
@@ -181,11 +182,26 @@ def getBatchFromPackages(helper, packageList):
                 log.error('  %s: %s', name, ' '.join(unmet))
             raise DependencyLoopError()
 
-        batch = Batch(helper)
-        for bobTrove in thisRound:
-            batch.addTrove(bobTrove)
-
         notBuilt -= thisRound
         built |= set(x.getName() for x in thisRound)
 
-        yield batch
+        toSerialize = []
+        batch = Batch(helper)
+        for bobTrove in thisRound:
+            if bobTrove.getTargetConfig().serializeFlavors:
+                toSerialize.append(bobTrove)
+            else:
+                batch.addTrove(bobTrove)
+        if not batch.isEmpty():
+            yield batch
+
+        batches = []
+        for bobTrove in toSerialize:
+            for idx, flavor in enumerate(bobTrove.getFlavors()):
+                newTrove = copy.deepcopy(bobTrove)
+                newTrove.setFlavors([flavor])
+                if len(batches) == idx:
+                    batches.append(Batch(helper))
+                batches[idx].addTrove(newTrove)
+        for batch in batches:
+            yield batch

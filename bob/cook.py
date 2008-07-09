@@ -51,6 +51,7 @@ class Batch(object):
         # setup
         self._contextCache = ContextCache(self._helper.cfg)
         self._troves = set()
+        self._commit = None
 
         # job state
         self._jobId = None
@@ -58,6 +59,9 @@ class Batch(object):
         # results
         self._testSuite = None
         self._coverageData = None
+
+    def isEmpty(self):
+        return not self._troves
 
     def addTrove(self, bobTrove):
         '''
@@ -69,6 +73,16 @@ class Batch(object):
         _macros = Macros(self._helper.plan.macros)
         macros = {}
         config = bobTrove.getTargetConfig()
+
+        if config is None:
+            commit = True
+        else:
+            commit = not config.noCommit
+        if self._commit is None:
+           self._commit = commit
+        else:
+            assert(self._commit == commit)
+
         if config:
             for key, value in config.macros.iteritems():
                 if key not in self._helper.plan.skipMacros:
@@ -153,6 +167,8 @@ class Batch(object):
         if not self._testSuite.isSuccessful():
             log.error('Some tests failed, aborting')
             raise TestFailureError()
+        if self._noCommit:
+            return
 
         # Commit to target repository
         if job.isCommitting():

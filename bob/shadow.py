@@ -370,6 +370,8 @@ def _sourcesIdentical(oldTroveCs, oldCs, newTroveCs, recipeName, newRecipe):
 def _loadRecipe(helper, package, recipePath):
     # Load the recipe
     buildFlavor = sorted(package.getFlavors())[0]
+
+    buildFlavor = deps.overrideFlavor(helper.cfg.buildFlavor, buildFlavor)
     use.setBuildFlagsFromFlavor(package.getPackageName(), buildFlavor,
         error=False)
     loader = RecipeLoader(recipePath, helper.cfg, helper.getRepos())
