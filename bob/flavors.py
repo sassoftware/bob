@@ -143,7 +143,7 @@ def reduce_flavors(package, target_cfg, flavors_in):
 
     flavors_out = set()
 
-    if target_cfg and (target_cfg.flavor_set):
+    if target_cfg and (target_cfg.flavor or target_cfg.flavor_set):
         # An explicit set of flavors was provided. They should be used instead
         # of whatever we were given.
         flavors_out = expand_targets(target_cfg)
