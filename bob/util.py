@@ -222,3 +222,24 @@ def popStopHandler():
     for signum in _STOP_SIGNALS:
         signal.signal(signum, _STOP_HANDLERS[-1])
     return oldHandler
+
+
+def reportCommitMap(commitMap):
+    '''
+    Print out a commit map in the form of a listing of sources and
+    troves built.
+    '''
+
+    print 'Committed:'
+    sourceNVMap = {}
+    for jobId in sorted(commitMap):
+        for sourceTup, builtTups in commitMap[jobId].iteritems():
+            sourceNVMap.setdefault(sourceTup[0:2], []).extend(builtTups)
+
+    for sourceNV in sorted(sourceNVMap):
+        print '%s=%s' % sourceNV
+        builtTups = sorted(sourceNVMap[sourceNV])
+        for builtTup in builtTups:
+            if ':' in builtTup[0]:
+                continue
+            print '  %s=%s[%s]' % builtTup

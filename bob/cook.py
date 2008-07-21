@@ -194,6 +194,7 @@ class Batch(object):
             self._helper.getrMakeClient().commitSucceeded(mapping)
             log.info('Commit of job %d completed in %.02f seconds',
                 jobId, time.time() - startTime)
+        return mapping
 
     def stop(self):
         '''

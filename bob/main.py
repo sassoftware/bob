@@ -24,7 +24,7 @@ from bob.errors import JobFailedError, TestFailureError
 from bob.macro import substResolveTroves
 from bob.test import TestSuite
 from bob.trove import BobPackage
-from bob.util import ClientHelper, pushStopHandler
+from bob.util import ClientHelper, pushStopHandler, reportCommitMap
 
 log = logging.getLogger('bob.main')
 
@@ -208,9 +208,10 @@ class BobMain(object):
             self._helper, mangleData, self._targetConfigs)
 
         # Run and commit each batch
+        commitMap = {}
         for batch in recurse.getBatchFromPackages(self._helper, allPackages):
             try:
-                batch.run(self)
+                commitMap.update(batch.run(self))
             except JobFailedError, e:
                 print 'Job %d failed:' % e.jobId
                 print e.why
@@ -230,6 +231,9 @@ class BobMain(object):
 
         # Output test and coverage results
         self._writeArtifacts()
+
+        # Output built troves
+        reportCommitMap(commitMap)
 
         return 0
 
