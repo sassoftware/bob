@@ -50,8 +50,14 @@ class TestCase(object):
         '''Add a run to the test case.'''
         run = dict(status=status, duration=duration, message=message)
         if configuration in self.runs:
-            log.warning('Test %s already has an entry for conf %r; '
-                'overwriting', self.name, configuration)
+            # Fudge the configuration to ensure a unique result
+            log.warning('Test %s duplicated in configuration %r',
+                self.name, configuration)
+            i = 0
+            while configuration in self.runs:
+                i += 1
+                configuration = HashableDict(configuration)
+                configuration['__fudge'] = str(i)
         self.runs[configuration] = run
         self.status = max(self.status, status)
 
