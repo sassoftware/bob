@@ -210,10 +210,14 @@ class TestSuite(object):
         for test in document.childNodes[0].childNodes:
             if not isinstance(test, xml.dom.minidom.Element):
                 continue
-            assert test.nodeName == 'testcase'
+            assert (test.nodeName == 'testcase' or test.nodeName == 'testCase')
 
             attrs = test.attributes
-            name = attrs['classname'].value + '.' + attrs['name'].value
+            if attrs.has_key('classname'):
+                classname='classname'
+            else:
+                classname='className'
+            name = attrs[classname].value + '.' + attrs['name'].value
             duration = float(attrs['time'].value)
 
             # Get the actual result status
