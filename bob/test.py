@@ -127,8 +127,6 @@ class TestCase(object):
         failed = self.get_failing_runs()
         last_lines = failed.values()[0]['message'].splitlines()
 
-        failing_configurations = self.failing_configurations()
-
         # De-indent the leading traceback chunk by 2 spaces
         if last_lines[-3].startswith('  ') \
           and last_lines[-2].startswith('  '):
@@ -206,28 +204,52 @@ class TestSuite(object):
             document = xml.dom.minidom.parse(fileobj)
         except Exception, e:
             raise TestParseError(str(e))
-
-        for test in document.childNodes[0].childNodes:
-            if not isinstance(test, xml.dom.minidom.Element):
-                continue
-            assert (test.nodeName == 'testcase' or test.nodeName == 'testCase')
-
-            attrs = test.attributes
+        
+        # get all the testsuite nodes
+        testSuiteNodes = document.getElementsByTagName('testsuite')
+        
+        # process each test suite node
+        for node in testSuiteNodes:            
+            self.process_testsuite(node, configuration)            
+            
+    def process_testsuite(self, tsNode, configuration):
+        """
+        Process a single testsuite node extracting the data we care about
+        """
+        
+        # see if the testsuite has a name
+        attrs = tsNode.attributes
+        testSuite = (attrs and attrs.has_key('name')) and attrs['name'].value \
+            or "DefaultTestSuite"
+        
+        # get all the test case nodes, which may or may not be camelCase
+        testCaseNodes = tsNode.getElementsByTagName('testcase')
+        if not testCaseNodes:
+            testCaseNodes = tsNode.getElementsByTagName('testCase')
+            
+        for node in testCaseNodes:
+            attrs = node.attributes
+            
+            # get the class name (may be camel case)
             if attrs.has_key('classname'):
                 classname='classname'
             else:
                 classname='className'
-            name = attrs[classname].value + '.' + attrs['name'].value
+                
+            name = ".".join([testSuite, attrs[classname].value, 
+                            attrs['name'].value])
+            
+            # get the duration
             duration = float(attrs['time'].value)
 
             # Get the actual result status
             message = None
-            if test.getElementsByTagName('error'):
+            if node.getElementsByTagName('error'):
                 status = TEST_ERROR
-                message = test.childNodes[1].childNodes[1].data
-            elif test.getElementsByTagName('failure'):
+                message = node.childNodes[1].childNodes[1].data
+            elif node.getElementsByTagName('failure'):
                 status = TEST_FAIL
-                message = test.childNodes[1].childNodes[1].data
+                message = node.childNodes[1].childNodes[0].data
             else:
                 status = TEST_OK
 
@@ -341,3 +363,13 @@ def processTroveTests(test_suite, cover_data, name, version, flavor,
     # Coverage
     for cover_fobj in cover_fobjs:
         coverage.load(cover_data, cover_fobj)
+        
+#def testLoadJunit():
+#    ts = TestSuite()
+#    fileobj = open("/tmp/junit.xml", 'r')
+    #fileobj = open("/tmp/junit-old.xml", 'r')
+#    ts.load_junit(fileobj, HashableDict(x86="foo"))
+    
+#if __name__ == '__main__':
+#    import sys
+#    sys.exit(testLoadJunit())
