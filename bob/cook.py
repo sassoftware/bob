@@ -173,7 +173,7 @@ class Batch(object):
 
         # ... or if all packages are set not to commit
         if self._commit is False:
-            return
+            return {}
 
         # Commit to target repository
         if job.isCommitting():
