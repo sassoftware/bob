@@ -13,26 +13,38 @@ import re
 
 from conary.deps import arch
 from conary.deps import deps
+from conary.deps.deps import parseFlavor as F
 
 
 _DISTROS = {
     'rPL 1': { # rPath Linux 1 flavor defaults
-        'base': '~X,~!alternatives,!bootstrap,~builddocs,~buildtests,'
+        'base': F('~X,~!alternatives,!bootstrap,~builddocs,~buildtests,'
             '!cross,~desktop,~emacs,~gcj,~gnome,~grub.static,~gtk,~ipv6,'
             '~kde,~krb,~ldap,~nptl,pam,~pcre,~perl,~!pie,~python,~qt,'
-            '~readline,~!sasl,~!selinux,ssl,~tcl,tcpwrappers,~tk,~!xfce',
+            '~readline,~!sasl,~!selinux,ssl,~tcl,tcpwrappers,~tk,~!xfce'),
         'arches': {
-            'x86': {
-                'prefix': '~dietlibc,',
-                'suffix': ' is: x86(~cmov, ~i486, ~i586, ~i686, ~mmx, '
-                    '~nx, ~sse, ~sse2)',
-            },
-            'x86_64': {
-                'prefix': '~!dietlibc,',
-                'suffix': ' is: x86_64(~3dnow, ~3dnowext, ~nx)',
-                'dual': [' is: x86(~cmov, ~i486, ~i586, ~i686, ~mmx, '
-                    '~nx, ~sse, ~sse2) x86_64(~3dnow, ~3dnowext, ~nx)'],
-            },
+            'x86': [
+                F('~dietlibc is: x86(~cmov, ~i486, ~i586, ~i686, ~mmx, '
+                    '~nx, ~sse, ~sse2)'),
+            ],
+            'x86_64': [
+                F('~!dietlibc is: x86_64(~3dnow, ~3dnowext, ~nx)'),
+                F('~!dietlibc is: x86(~cmov, ~i486, ~i586, ~i686, ~mmx, '
+                    '~nx, ~sse, ~sse2) x86_64(~3dnow, ~3dnowext, ~nx)'),
+            ]
+        },
+    },
+
+    'rPL 2': {
+        'base': F(''),
+        'arches': {
+            'x86': [
+                F('is: x86(i486,i586,i686,sse,sse2)'),
+            ],
+            'x86_64': [
+                F('is: x86_64'),
+                F('is: x86(i486,i586,i686,sse,sse2) x86_64'),
+            ],
         },
     }
 }
@@ -41,28 +53,30 @@ _DISTROS = {
 def _make_set(prefix, distro='rPL 1', arches=None):
     '''Make a set of flavors from a flavor prefix and the given distro set'''
 
+    prefix = deps.parseFlavor(prefix)
     distro = _DISTROS[distro]
     ret = []
     if not arches:
         arches = distro['arches'].keys()
 
     for one_arch in arches:
-        arch_set = distro['arches'][one_arch]
-        ret.append(deps.parseFlavor(prefix + arch_set['prefix'] +
-            distro['base'] + arch_set['suffix']))
+        flav = distro['base'].copy()
+        flav.union(distro['arches'][one_arch][0])
+        flav.union(prefix)
+        ret.append(flav)
 
     return ret
 
 
-flavor_template_re = re.compile('%([^%:]+):([^%:]+)%')
+FLAVOR_TEMPLATE_RE = re.compile('%([^%:]+):([^%:]+)%')
 def expand_targets(cfg):
     '''
     Accept a target config section and return a list of build flavors.
     '''
 
     # If no configuration is available, build is: x86
-    if not cfg:
-        return SETS['x86']
+    if not cfg or (not cfg.flavor_set and not cfg.flavor):
+        return SETS['rPL 1']['x86']
 
     # Ensure flavor_set and flavor aren't both set
     # This might be supported later, by recombining flavors from each
@@ -70,31 +84,36 @@ def expand_targets(cfg):
         raise ValueError('flavor_set and flavor cannot be used together')
 
     if cfg.flavor_set:
+        if ':' in cfg.flavor_set:
+            distro, set_name = cfg.flavor_set.split(':', 1)
+        else:
+            distro, set_name = 'rPL 1', cfg.flavor_set
+
         try:
-            return SETS[cfg.flavor_set]
-        except IndexError:
-            raise RuntimeError('flavor set "%s" is not defined'
-                % cfg.flavor_set)
+            return SETS[distro][set_name]
+        except KeyError:
+            raise RuntimeError('flavor set "%s" is not defined for '
+                'distro "%s"' % (distro, set_name))
     else:
         ret = []
         for flavor in cfg.flavor:
             if '%' in flavor:
                 # Handle "templates" in flavors, e.g.
                 # flavor %rPL 1:x86% xen,dom0,!domU,!vmware
-                match = flavor_template_re.search(flavor)
+                match = FLAVOR_TEMPLATE_RE.search(flavor)
                 if not match:
                     raise RuntimeError('Malformed template in flavor')
 
-                stripped_flavor = flavor_template_re.sub('', flavor)
+                stripped_flavor = FLAVOR_TEMPLATE_RE.sub('', flavor)
                 if '%' in stripped_flavor:
                     raise RuntimeError('Cannot have multiple templates '
                         'in flavor')
 
-                distro, arch = match.groups()
-                distro = _DISTROS[distro]
-                arch_set = distro['arches'][arch]
-                base = deps.parseFlavor(arch_set['prefix'] + distro['base']
-                    + arch_set['suffix'])
+                distro_name, arch_name = match.groups()
+                distro = _DISTROS[distro_name]
+                base = distro['base'].copy()
+                base.union(distro['arches'][arch_name][0])
+
                 suffix = deps.parseFlavor(stripped_flavor)
                 ret.append(deps.overrideFlavor(base, suffix))
             else:
@@ -121,13 +140,11 @@ def guess_search_flavors(flavor, distro='rPL 1'):
     arch_set = distro['arches'][maj_arch]
 
     # Start the search flavor with the stock build flavor
-    ret = [deps.parseFlavor(arch_set['prefix'] +
-        distro['base'] + arch_set['suffix'])]
-
-    # Now add dual-arch flavors
-    for dual_suffix in arch_set.get('dual', []):
-        ret.append(deps.parseFlavor(arch_set['prefix'] +
-            distro['base'] + dual_suffix))
+    ret = []
+    for suffix in arch_set:
+        flav = distro['base'].copy()
+        flav.union(suffix)
+        ret.append(flav)
 
     return ret
 
@@ -168,15 +185,15 @@ def reduce_flavors(package, target_cfg, flavors_in):
     return flavors_out
 
 
-def mask_flavor(base_flavor, mask_flavor):
+def mask_flavor(baseFlavor, maskFlavor):
     '''
-    Remove flags from I{base_flavor} not present in I{mask_flavor}. Sense of
-    flags in I{mask_flavor} is ignored.
+    Remove flags from I{baseFlavor} not present in I{maskFlavor}. Sense of
+    flags in I{maskFlavor} is ignored.
     '''
 
     new_flavor = deps.Flavor()
-    for cls, mask_dep in mask_flavor.iterDeps():
-        base_class = base_flavor.members.get(cls.tag, None)
+    for cls, mask_dep in maskFlavor.iterDeps():
+        base_class = baseFlavor.members.get(cls.tag, None)
         if base_class is None:
             continue
         base_dep = base_class.members.get(mask_dep.name, None)
@@ -184,7 +201,7 @@ def mask_flavor(base_flavor, mask_flavor):
             continue
 
         new_flags = {}
-        for flag, sense in mask_dep.flags.iteritems():
+        for flag, _ in mask_dep.flags.iteritems():
             if flag in base_dep.flags:
                 new_flags[flag] = base_dep.flags[flag]
 
@@ -215,21 +232,28 @@ def fragment_flavor(package, flavor):
 
 
 # Flavor fragments used below in SETS
-_PLAIN = '!xen,!domU,!dom0,!vmware,'
-_DOMU = 'xen,domU,!dom0,!vmware,'
-_DOM0 = 'xen,!domU,dom0,!vmware,'
-_VMWARE = '!xen,!domU,!dom0,vmware,'
+_PLAIN = '!xen,!domU,!dom0,!vmware'
+_DOMU = 'xen,domU,!dom0,!vmware'
+_DOMZ = 'xen,!domU,dom0,!vmware'
+_VMWARE = '!xen,!domU,!dom0,vmware'
 
 
 # Lists of build flavors that can be used to easily build packages and groups
 # in multiple useful flavors.
-SETS = {
-'x86': _make_set(_PLAIN, arches=['x86']),
-'x86_64': _make_set(_PLAIN, arches=['x86_64']),
-'plain': _make_set(_PLAIN),
-'dom0': _make_set(_DOM0),
-'domU': _make_set(_DOMU),
-'appliance': _make_set(_PLAIN) +
-             _make_set(_DOMU)  +
-             _make_set(_VMWARE),
-}
+SETS = {}
+def _populate_sets():
+    '''
+    Fill out C{SETS} on module load.
+    '''
+    for distro in _DISTROS:
+        SETS[distro] = {
+            'x86': _make_set(_PLAIN, distro, arches=['x86']),
+            'x86_64': _make_set(_PLAIN, distro, arches=['x86_64']),
+            'plain': _make_set(_PLAIN, distro),
+            'dom0': _make_set(_DOMZ, distro),
+            'domU': _make_set(_DOMU, distro),
+            'appliance': _make_set(_PLAIN, distro) +
+                         _make_set(_DOMU, distro)  +
+                         _make_set(_VMWARE, distro),
+            }
+_populate_sets()
