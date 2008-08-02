@@ -107,6 +107,11 @@ class BobMain(object):
         cfg = self._helper.cfg
         self._macros = Macros(self._cfg.macros)
 
+        # Fill in automagic macros
+        self._macros['start_time'] = time.strftime('%Y%m%d_%H%M%S',
+            time.localtime())
+        self._macros['target_label'] = self._cfg.targetLabel.asString()
+
         cfg.strictMode = True
         cfg.copyInConary = cfg.copyInConfig = False
 
@@ -197,8 +202,8 @@ class BobMain(object):
         self._configure()
         self._freezeHg()
 
-        mangleData = {  'startTime': time.time(),
-                        'hg': self._hg,
+        mangleData = {  'hg': self._hg,
+                        'macros': self._macros,
                         'plan': self._cfg,
                         }
 

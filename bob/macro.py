@@ -20,9 +20,7 @@ def expand(raw, package):
     macros = {}
 
     # Basic info
-    macros.update(data['plan'].macros)
-    macros['start_time'] = time.strftime('%Y%m%d_%H%M%S', time.localtime(
-        data['startTime']))
+    macros.update(data['macros'])
 
     # Additional info available in trove contexts
     config = package.getTargetConfig()
