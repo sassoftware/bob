@@ -249,7 +249,7 @@ class TestSuite(object):
                 message = node.childNodes[1].childNodes[1].data
             elif node.getElementsByTagName('failure'):
                 status = TEST_FAIL
-                message = node.childNodes[1].childNodes[0].data
+                message = node.childNodes[1].childNodes[1].data
             else:
                 status = TEST_OK
 
