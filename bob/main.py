@@ -21,7 +21,7 @@ from bob import hg
 from bob import recurse
 from bob import version
 from bob.errors import JobFailedError, TestFailureError
-from bob.macro import substResolveTroves
+from bob.macro import substILP, substResolveTroves
 from bob.test import TestSuite
 from bob.trove import BobPackage
 from bob.util import ClientHelper, pushStopHandler, reportCommitMap
@@ -123,8 +123,8 @@ class BobMain(object):
 
         # And these are a little more indirect
         cfg.buildLabel = self._cfg.targetLabel
-        cfg.installLabelPath = [self._cfg.sourceLabel] + \
-            self._cfg.installLabelPath
+        cfg.installLabelPath = substILP([str(self._cfg.sourceLabel)] +
+            self._cfg.installLabelPath, self._macros)
         cfg.resolveTroves = substResolveTroves(self._cfg.resolveTroves,
             self._macros)
         cfg.resolveTroveTups = buildcmd._getResolveTroveTups(

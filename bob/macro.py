@@ -11,6 +11,7 @@ Mechanism for expanding macros from a trove context.
 import logging
 import time
 
+from conary.versions import Label
 from conary.build.macros import Macros
 
 
@@ -34,6 +35,13 @@ def expand(raw, package):
 
     _macros = Macros(macros)
     return raw % _macros
+
+
+def substILP(ilp, macros):
+    """
+    Substitute C{macros} into the install label path C{ilp}.
+    """
+    return [Label(x % macros) for x in ilp]
 
 
 def substResolveTroves(resolveTroves, macros):

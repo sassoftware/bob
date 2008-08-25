@@ -4,7 +4,7 @@
 # All rights reserved.
 #
 
-from conary.conarycfg import CfgFlavor, CfgLabel, CfgInstallLabelPath
+from conary.conarycfg import CfgFlavor, CfgLabel
 from conary.lib import cfg
 from conary.lib.cfgtypes import CfgList, CfgString, CfgInt, CfgDict
 from conary.lib.cfgtypes import CfgQuotedLineList, CfgBool, ParseError
@@ -51,7 +51,8 @@ class BobConfig(cfg.SectionedConfigFile):
     hg                      = CfgDict(CfgString)    # macros supported
 
     # build
-    installLabelPath        = CfgInstallLabelPath
+    installLabelPath        = CfgQuotedLineList(
+                                CfgString)          # macros supported
     matchTroveRule          = CfgList(CfgString)
     recurseTroveRule        = CfgList(CfgString)
     shortenGroupFlavors     = (CfgBool, True)
