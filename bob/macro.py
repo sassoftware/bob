@@ -48,16 +48,18 @@ def substResolveTroves(resolveTroves, macros):
     '''
     Substitute C{macros} into the config item C{resolveTroves}.
 
-    @type  resolveTroves: CfgList(CfgQuotedLineList(CfgTroveSpec))
+    @type  resolveTroves: C{[[(name, version, flavor)]]}
     @type  macros: dict or Macros
     '''
 
     ret = []
     for bucket in resolveTroves:
         newBucket = []
-        for troveSpec in bucket:
-            substSpec = [x and (x % macros) or x for x in troveSpec]
-            newBucket.append(tuple(substSpec))
+        for name, version, flavor in bucket:
+            name = name % macros
+            if version:
+                version = version % macros
+            newBucket.append((name, version, flavor))
         ret.append(newBucket)
 
     return ret
