@@ -221,6 +221,7 @@ def getBatchFromPackages(helper, packageList):
             for idx, flavor in enumerate(sorted(bobTrove.getFlavors())):
                 newTrove = copy.deepcopy(bobTrove)
                 newTrove.setFlavors([flavor])
+                newTrove.getTargetConfig().flavor = [str(flavor)]
                 if len(batches) == idx:
                     batches.append(Batch(helper))
                 batches[idx].addTrove(newTrove)
