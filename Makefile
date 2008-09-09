@@ -1,7 +1,12 @@
-export VERSION=3.1
+prefix = /usr
+lib = $(shell arch | sed -r '/x86_64|ppc64|s390x|sparc64/{s/.*/lib64/;q};s/.*/lib/')
+libdir = $(prefix)/$(lib)
+bindir = $(prefix)/bin
 
-libdir=/usr/lib
-bindir=/usr/bin
+export DESTDIR=
+PYTHON=/usr/bin/python2.4
+PYCFLAGS=-c 'import compileall, sys;[compileall.compile_dir(x, ddir=x.replace("$(DESTDIR)", ""), quiet=1) for x in sys.argv[1:]]'
+VERSION=3.1
 
 generated_files = bob/version.py
 
@@ -12,8 +17,8 @@ all: $(generated_files)
 install: $(generated_files)
 	mkdir -p "$(DESTDIR)$(libdir)/python2.4/site-packages/bob"
 	cp -a bob/*.py "$(DESTDIR)$(libdir)/python2.4/site-packages/bob/"
-	python2.4 $(libdir)/python2.4/compileall.py "$(DESTDIR)$(libdir)/python2.4/site-packages/bob"
-	python2.4 -O $(libdir)/python2.4/compileall.py "$(DESTDIR)$(libdir)/python2.4/site-packages/bob"
+	$(PYTHON) $(PYCFLAGS) "$(DESTDIR)$(libdir)/python2.4/site-packages/bob"
+	$(PYTHON) -O $(PYCFLAGS) "$(DESTDIR)$(libdir)/python2.4/site-packages/bob"
 	install -D -m755 bin/bob $(DESTDIR)$(bindir)/bob
 
 clean:
