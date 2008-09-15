@@ -47,12 +47,16 @@ ShadowJob = makeContainer('ShadowJob', ['package', 'sourceTrove', 'oldTrove',
 class ShadowBatch(object):
     def __init__(self, helper):
         self.helper = helper
+        self.sources = set()
         self.jobs = []
         self.sourceChangeSet = None
         self.oldChangeSet = None
 
     def addPackage(self, package):
-        self.jobs.append(ShadowJob(package=package))
+        source = package.getUpstreamNameVersionFlavor()
+        if source not in self.sources:
+            self.jobs.append(ShadowJob(package=package))
+            self.sources.add(source)
 
     def shadow(self, mangleData):
         if not self.jobs:
