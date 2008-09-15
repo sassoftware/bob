@@ -22,137 +22,240 @@ from conary.build.recipe import isPackageRecipe
 from conary.changelog import ChangeLog
 from conary.conaryclient import filetypes
 from conary.deps import deps
-from conary.files import ThawFile
-from conary.lib.sha1helper import sha1String
+from conary.files import FileFromFilesystem, ThawFile
+from conary.repository import filecontents
 from conary.repository.changeset import ChangedFileTypes, ChangeSet
 from conary.trove import Trove
 from conary.versions import Revision
 from rmake import compat
 
-from bob import autosource
+from bob import macro
 from bob.mangle import mangle
-from bob.util import findFile
+from bob.util import findFile, makeContainer
 
 log = logging.getLogger('bob.shadow')
 
+(SP_INIT, SP_GET_UPSTREAM, SP_GET_RECIPE,
+    SP_FIND_OLD, SP_GET_OLD, SP_DONE) = range(6)
+
+#pylint: disable-msg=C0103
+# makeContainer is a class factory, ergo ShadowJob is a class
+ShadowJob = makeContainer('ShadowJob', ['package', 'sourceTrove', 'oldTrove',
+    'recipe', 'recipeObj'])
+
 
 class ShadowBatch(object):
-    def __init__(self):
-        self._packages = {}
-
-        self._helper = self._mangleData = None
-        self._packageList = None
-
-        self._upstreamChangeSet = None
-        self._upstreamTroveCSets = None
-
-        self._recipes = None
-        self._recipeObjs = None
-
-        self._oldChangeSet = None
-        self._oldTroveCSets = None
-        self._newVersions = None
+    def __init__(self, helper):
+        self.helper = helper
+        self.jobs = []
+        self.sourceChangeSet = None
+        self.oldChangeSet = None
 
     def addPackage(self, package):
-        self._packages[package.getName()] = package
+        self.jobs.append(ShadowJob(package=package))
 
-    def shadow(self, helper, mangleData):
-        if not self._packages:
+    def shadow(self, mangleData):
+        if not self.jobs:
             # Short-circuit
             return
 
-        self._packageList = sorted(self._packages.itervalues())
-        self._helper, self._mangleData = helper, mangleData
+        for job in self.jobs:
+            job.package.setMangleData(mangleData)
 
-        self._getUpstreamChangeSets()
-        self._mangleRecipes()
+        self.sourceChangeSet, sourceTroves, recipes = self._getRecipes()
+        self.oldChangeSet, oldTroves = self._getOldChangeSets()
 
-        self._getOldChangeSets()
+        for job, sourceTrove, (recipe, recipeObj), oldTrove in zip(
+          self.jobs, sourceTroves, recipes, oldTroves):
+            job.sourceTrove = sourceTrove
+            job.recipe = recipe
+            job.recipeObj = recipeObj
+            job.oldTrove = oldTrove
 
-        self._commitShadows()
+        self._merge()
 
-    def _getUpstreamChangeSets(self):
-        '''
-        Get trove changesets of all upstream source troves.
-        '''
+    def _getRecipes(self):
+        sourceJob = []
+        for job in self.jobs:
+            sourceJob.append((job.package.getName(), (None, None),
+                (job.package.getUpstreamVersion(), deps.Flavor()), True))
 
-        job = []
-        for package in self._packageList:
-            job.append((package.getName(), (None, None),
-                (package.getUpstreamVersion(), deps.Flavor()), True))
-
-        self._upstreamChangeSet = self._helper.getRepos().createChangeSet(job,
-            withFileContents=False, recurse=False)
-
-        self._upstreamTroveCSets = []
-        for package in self._packageList:
-            troveCs = self._upstreamChangeSet.getNewTroveVersion(
-                *package.getUpstreamNameVersionFlavor())
-            self._upstreamTroveCSets.append(troveCs)
-
-    def _mangleRecipes(self):
-        '''
-        Fetch the recipes of all upstream sources, mangle them, load
-        the recipe, and save the mangled recipe and new revision.
-        '''
-
-        # Get recipe contents
+        sourceChangeSet = self.helper.createChangeSet(sourceJob)
+        sourceTroves = []
         fileJob = []
-        for package, troveCs \
-          in zip(self._packageList, self._upstreamTroveCSets):
-            fileId, fileVer = findFile(troveCs, package.getRecipeName())[2:4]
-            fileJob.append((fileId, fileVer))
+        for job in self.jobs:
+            sourceTrove = sourceChangeSet.getNewTroveVersion(
+                *job.package.getUpstreamNameVersionFlavor())
+            fileJob.append(findFile(sourceTrove,
+                job.package.getRecipeName())[2:4])
+            sourceTroves.append(sourceTrove)
 
-        results = self._helper.getRepos().getFileContents(fileJob)
+        allContents = self.helper.getRepos().getFileContents(fileJob)
 
-        # Mangle and load each recipe
-        self._recipes = []
-        self._recipeObjs = []
-        for package, contents in zip(self._packageList, results):
-            log.debug('Loading %s', package.getName())
-
-            # Get contents
+        recipes = []
+        for job, contents in zip(self.jobs, allContents):
             recipe = contents.get().read()
-
-            # Mangle
-            package.setMangleData(self._mangleData)
-            finalRecipe = mangle(package, recipe)
+            finalRecipe = mangle(job.package, recipe)
 
             # Write to disk for convenience, then load
             tempDir = tempfile.mkdtemp(prefix=('%s-'
-                % package.getPackageName()))
+                % job.package.getPackageName()))
             try:
-                recipePath = os.path.join(tempDir, package.getRecipeName())
-                open(recipePath, 'w').write(finalRecipe)
+                recipePath = os.path.join(tempDir,
+                    job.package.getRecipeName())
+                fObj = open(recipePath, 'w')
+                fObj.write(finalRecipe)
+                fObj.close()
 
-                recipeObj = _loadRecipe(self._helper, package, recipePath)
+                print 'Loading %s' % job.package.getName()
+                recipeObj = _loadRecipe(self.helper, job.package, recipePath)
+                print 'Loaded %s=%s' % (job.package.getName(), recipeObj.version)
             finally:
                 shutil.rmtree(tempDir)
 
-            self._recipes.append(finalRecipe)
-            self._recipeObjs.append(recipeObj)
+            recipes.append((finalRecipe, recipeObj))
+
+        return sourceChangeSet, sourceTroves, recipes
+
+    def _merge(self):
+        changeSet = ChangeSet()
+        doCommit = False
+
+        for job in self.jobs:
+            filesToAdd = {}
+
+            # Create a new trove.
+            if job.oldTrove:
+                newVersion = job.oldTrove.getNewVersion().copy()
+                newVersion.incrementSourceCount()
+                assert newVersion.trailingRevision().getVersion(
+                    ) == job.recipeObj.version
+            else:
+                newVersion = _createVersion(job.package, self.helper,
+                    job.recipeObj.version)
+
+            newTrove = Trove(job.sourceTrove)
+            newTrove.changeVersion(newVersion)
+
+            # Remove all auto sources.
+            for pathId, path, fileId, fileVer in list(newTrove.iterFileList()):
+                fileChange = self.sourceChangeSet.getFileChange(None, fileId)
+                fileObj = ThawFile(fileChange, pathId)
+                if fileObj.flags.isAutoSource():
+                    newTrove.removeFile(pathId)
+
+            # Create a filestream for the recipe.
+            recipeFileHelper = filetypes.RegularFile(contents=job.recipe,
+                config=True)
+            recipePathId = findFile(job.sourceTrove,
+                job.package.getRecipeName())[0]
+            recipeFile = recipeFileHelper.get(recipePathId)
+            recipeFile.flags.isSource(set=True)
+            recipeFileId = recipeFile.fileId()
+
+            filesToAdd[recipeFileId] = (recipeFile, recipeFileHelper.contents,
+                True)
+
+            # Substitute the recipe into the new trove.
+            newTrove.removeFile(recipePathId)
+            newTrove.addFile(recipePathId, job.package.getRecipeName(),
+                newVersion, recipeFileId)
+
+            # Collect requested auto sources from recipe.
+            recipeFiles = dict((os.path.basename(x.getPath()), x)
+                for x in job.recipeObj.getSourcePathList())
+            sourceFiles = dict((x[1], x) for x in job.sourceTrove.getNewFileList())
+            oldFiles = job.oldTrove and dict((x[1], x)
+                for x in job.oldTrove.getNewFileList()) or {}
+            newFiles = set(x[1] for x in newTrove.iterFileList())
+
+            needFiles = set(recipeFiles) - newFiles
+            modified = False
+            for autoPath in needFiles:
+                if autoPath in sourceFiles:
+                    pathId, path, fileId, fileVer = sourceFiles[autoPath]
+                    newTrove.addFile(pathId, path, fileVer, fileId)
+                elif autoPath in oldFiles:
+                    pathId, path, fileId, fileVer = oldFiles[autoPath]
+                    newTrove.addFile(pathId, path, fileVer, fileId)
+                else:
+                    source = recipeFiles[autoPath]
+                    cached = source.fetch()
+
+                    autoPathId = os.urandom(16)
+                    autoObj = FileFromFilesystem(cached, autoPathId)
+                    autoObj.flags.isAutoSource(set=True)
+                    autoObj.flags.isSource(set=True)
+                    autoFileId = autoObj.fileId()
+
+                    autoContents = filecontents.FromFilesystem(cached)
+                    filesToAdd[autoFileId] = (autoObj, autoContents, False)
+                    newTrove.addFile(autoPathId, autoPath,
+                        newVersion, autoFileId)
+
+                    modified = True
+
+            # If no autosources were missing, check if anything
+            # has changed at all.
+            if not modified and job.oldTrove and _sourcesIdentical(
+              job.oldTrove, newTrove, [self.oldChangeSet,
+              self.sourceChangeSet, filesToAdd]):
+                job.package.setDownstreamVersion(job.oldTrove.getNewVersion())
+                log.debug('Skipped %s=%s', job.oldTrove.getName(),
+                    job.oldTrove.getNewVersion())
+                continue
+
+            # Add files and contents to changeset.
+            for fileId, (fileObj, fileContents, cfgFile) in filesToAdd.items():
+                changeSet.addFileContents(fileObj.pathId(), fileObj.fileId(),
+                    ChangedFileTypes.file, fileContents, cfgFile)
+                changeSet.addFile(None, fileObj.fileId(), fileObj.freeze())
+
+            # Create a changelog entry.
+            changeLog = ChangeLog(
+                name=self.helper.cfg.name, contact=self.helper.cfg.contact,
+                message=self.helper.plan.commitMessage + '\n')
+            newTrove.changeChangeLog(changeLog)
+
+            # Calculate trove digests and add the trove to the changeset
+            newTrove.invalidateDigests()
+            newTrove.computeDigests()
+            newTroveCs = newTrove.diff(None, absolute=True)[0]
+            changeSet.newTrove(newTroveCs)
+            doCommit = True
+
+            job.package.setDownstreamVersion(newVersion)
+            log.debug('Created %s=%s', newTrove.getName(), newVersion)
+            # TODO: maybe save the downstream trove object for group recursion
+
+        import sys; sys.exit(0)
+
+        if doCommit:
+            if compat.ConaryVersion().signAfterPromote():
+                cook.signAbsoluteChangeset(changeSet, None)
+            self.helper.getRepos().commitChangeSet(changeSet)
 
     def _getOldChangeSets(self):
-        '''
-        Get trove changesets of previous versions of each downstream
-        trove with the same revision as the new one.
-        '''
-        targetLabel = self._helper.plan.targetLabel
+        """
+        Fetch old versions of each trove, where they can be found
+        and are suitably sane.
+        """
+        oldSpecs = []
+        targetLabel = self.helper.plan.targetLabel
+        for job in self.jobs:
+            version = macro.expand(job.package.getBaseVersion(), job.package)
+            oldSpecs.append((job.package.getName(),
+                '%s/%s' % (targetLabel, version), None))
 
-        # Look for an existing trove with the same revision
-        queries = []
-        for package, recipeObj in zip(self._packageList, self._recipeObjs):
-            version = '%s/%s' % (targetLabel, recipeObj.version)
-            queries.append((package.getName(), version, None))
+        print 'Finding\n  ' + '\n  '.join('%s=%s' % x[:2] for x in oldSpecs)
 
-        results = self._helper.getRepos().findTroves(None, queries,
+        results = self.helper.getRepos().findTroves(None, oldSpecs,
             allowMissing=True)
 
-        job = []
-        oldQueries = []
-        self._newVersions = []
-        for package, recipeObj, query in zip(self._packageList,
-          self._recipeObjs, queries):
+        toGet = []
+        oldVersions = []
+        for job, query in zip(self.jobs, oldSpecs):
+            package = job.package
             targetBranch = _getTargetBranch(package, targetLabel)
             if query in results:
                 # An old version was found.
@@ -180,121 +283,25 @@ class ShadowBatch(object):
 
                     saneRevision = oldCount == parentCount
 
-                # If all preconditions match, use the old version
+                # If all preconditions match, fetch the old version
+                # so we can base the new version off that, or maybe
+                # even use it as-is.
                 if saneBranch and saneRevision:
-                    newVersion = oldVersion.copy()
-                    newVersion.incrementSourceCount()
-
-                    # Add the old trove to the batch of troves to fetch
-                    # below.
-                    job.append((package.getName(), (None, None),
+                    toGet.append((package.getName(), (None, None),
                         (oldVersion, deps.Flavor()), True))
-                    oldQueries.append((package.getName(), oldVersion,
+                    oldVersions.append((package.getName(), oldVersion,
                         deps.Flavor()))
-
-                    self._newVersions.append(newVersion)
                     continue
+            oldVersions.append(None)
 
-            # No old version exists. Create one.
-            newVersion = _createVersion(package, self._helper,
-                recipeObj.version)
-            oldQueries.append(None)
-            self._newVersions.append(newVersion)
-
-        # Now collect all the predecessor troves for comparison
-        # purposes
-        self._oldChangeSet = self._helper.getRepos().createChangeSet(job,
-            withFileContents=False, recurse=False)
-
-        self._oldTroveCSets = []
-        for package, oldQuery in zip(self._packageList, oldQueries):
-            if oldQuery:
-                troveCs = self._oldChangeSet.getNewTroveVersion(*oldQuery)
-                self._oldTroveCSets.append(troveCs)
+        oldChangeSet = self.helper.createChangeSet(toGet)
+        oldTroves = []
+        for job, oldVersion in zip(self.jobs, oldVersions):
+            if oldVersion:
+                oldTroves.append(oldChangeSet.getNewTroveVersion(*oldVersion))
             else:
-                self._oldTroveCSets.append(None)
-
-    def _commitShadows(self):
-        '''
-        Check if each source needs shadowing; if so, add it to a
-        changeset and commit it at the end.
-        '''
-
-        changeSet = ChangeSet()
-        doCommit = False
-
-        for package, newVersion, recipe, recipeObj, \
-          upstreamTroveCs, oldTroveCs \
-          in zip(self._packageList, self._newVersions,
-          self._recipes, self._recipeObjs,
-          self._upstreamTroveCSets, self._oldTroveCSets):
-            # Figure out what auto-sources we're using
-            hgSource = autosource.getHgSource(oldTroveCs, recipeObj)
-
-            # Check if the existing trove is recent enough
-            if not hgSource and oldTroveCs and _sourcesIdentical(oldTroveCs,
-              self._oldChangeSet, upstreamTroveCs,
-              package.getRecipeName(), recipe):
-                # Looks like it is. Keep the old version.
-                keepVersion = oldTroveCs.getNewVersion()
-                package.setDownstreamVersion(keepVersion)
-                log.debug('Keeping %s=%s', package.getName(), keepVersion)
-                continue
-
-            # Otherwise, build a trove and add it to the changeset.
-            # Use the upstream trove as a starting point so we don't
-            # have to add any files other than the recipe itself.
-            newTrove = Trove(upstreamTroveCs)
-            newTrove.changeVersion(newVersion)
-
-            # Create a filestream for the recipe
-            recipeFileHelper = filetypes.RegularFile(contents=recipe,
-                config=True)
-            recipePathId = findFile(upstreamTroveCs,
-                package.getRecipeName())[0]
-            recipeFile = recipeFileHelper.get(recipePathId)
-            recipeFile.flags.isSource(set=True)
-            recipeFileId = recipeFile.fileId()
-
-            # Add the recipe to the changeset
-            changeSet.addFileContents(recipePathId, recipeFileId,
-                ChangedFileTypes.file, recipeFileHelper.contents,
-                cfgFile=True)
-            changeSet.addFile(None, recipeFileId, recipeFile.freeze())
-
-            # Replace the recipe in the trove with the new one
-            newTrove.removeFile(recipePathId)
-            newTrove.addFile(recipePathId, package.getRecipeName(),
-                newVersion, recipeFileId)
-
-            # If an autosource is involved, add that and remove
-            # any existing source.
-            if hgSource:
-                autosource.addSnapshotToTrove(changeSet, newTrove,
-                    recipeObj, hgSource)
-
-            # Create a changelog entry.
-            changeLog = ChangeLog(
-                name=self._helper.cfg.name, contact=self._helper.cfg.contact,
-                message=self._helper.plan.commitMessage + '\n')
-            newTrove.changeChangeLog(changeLog)
-
-            # Calculate trove digests and add the trove to the changeset
-            newTrove.invalidateDigests()
-            newTrove.computeDigests()
-            newTroveCs = newTrove.diff(None, absolute=True)[0]
-            changeSet.newTrove(newTroveCs)
-            doCommit = True
-
-            package.setDownstreamVersion(newVersion)
-            log.debug('Committed %s=%s', package.getName(), newVersion)
-            # TODO: maybe save the downstream trove object for group recursion
-
-        # Commit!
-        if doCommit:
-            if compat.ConaryVersion().signAfterPromote():
-                cook.signAbsoluteChangeset(changeSet, None)
-            self._helper.getRepos().commitChangeSet(changeSet)
+                oldTroves.append(None)
+        return oldChangeSet, oldTroves
 
 
 def _getTargetBranch(package, targetLabel):
@@ -338,33 +345,56 @@ def _createVersion(package, helper, version):
     return newVersion
 
 
-def _sourcesIdentical(oldTroveCs, oldCs, newTroveCs, recipeName, newRecipe):
+def _sourcesIdentical(oldTrove, newTrove, changeSets):
     '''
-    Compare the trove changesets I{oldTroveCs} and I{newTroveCs}.
-    Return I{True} if I{oldTroveCs} is identical to I{newTroveCs} with
-    the file I{recipeName} replaced with contents I{recipe} in the
-    latter.
+    Return C{True} if C{oldTrove} and C{newTrove} have the same
+    contents.
     '''
+    def listFiles(trv):
+        if isinstance(trv, Trove):
+            return list(trv.iterFileList())
+        else:
+            return trv.getNewFileList()
 
-    # First check everything but the recipe. Just compare fileIds
-    # since all we do with these files is copy them intact.
-    newList = set(fileId for (_, path, fileId, _)
-        in newTroveCs.getNewFileList() if path != recipeName)
-    oldList = set(fileId for (_, path, fileId, _)
-        in oldTroveCs.getNewFileList() if path != recipeName)
-    if newList != oldList:
+    def getSHA1(fileId, pathId):
+        for changeSet in changeSets:
+            if isinstance(changeSet, ChangeSet):
+                fileChange = changeSet.getFileChange(None, fileId)
+                if not fileChange:
+                    continue
+
+                fileObj = ThawFile(fileChange, pathId)
+                return fileObj.contents.sha1()
+            else:
+                fileObj = changeSet.get(fileId, None)
+                if not fileObj:
+                    continue
+
+                return fileObj[0].contents.sha1()
+
+        assert False, "file is not in any changeset"
+
+    oldPaths = dict((x[1], x) for x in listFiles(oldTrove))
+    newPaths = dict((x[1], x) for x in listFiles(newTrove))
+
+    if set(oldPaths) != set(newPaths):
+        # Different paths
         return False
 
-    # Now check the recipes. Here, we'll have to compare SHA-1 digests.
-    # We can't create a new file out of the new recipe and compare
-    # fileIds because we'd have to clone the inode info in order to get
-    # the fileId to line up, which would be silly.
-    oldPathId, oldFileId = [(pathId, fileId) for (pathId, path, fileId, _)
-        in oldTroveCs.getNewFileList() if path == recipeName][0]
-    oldFile = ThawFile(oldCs.getFileChange(None, oldFileId), oldPathId)
-    oldDigest = oldFile.contents.sha1()
-    newDigest = sha1String(newRecipe)
-    return oldDigest == newDigest
+    for path, (oldPathId, _, oldFileId, _) in oldPaths.items():
+        newPathId, _, newFileId, _ = newPaths[path]
+
+        if oldFileId == newFileId:
+            # Same fileid
+            continue
+
+        oldSHA1 = getSHA1(oldFileId, oldPathId)
+        newSHA1 = getSHA1(newFileId, newPathId)
+        if oldSHA1 != newSHA1:
+            # Contents differ
+            return False
+
+    return True
 
 
 def _loadRecipe(helper, package, recipePath):
@@ -382,7 +412,8 @@ def _loadRecipe(helper, package, recipePath):
         lcache = RepositoryCache(helper.getRepos())
         macros = {'buildlabel': helper.plan.sourceLabel.asString(),
             'buildbranch': package.getUpstreamVersion().branch().asString()}
-        recipeObj = recipeClass(helper.cfg, lcache, [], macros, lightInstance=True)
+        recipeObj = recipeClass(helper.cfg, lcache, [], macros,
+            lightInstance=True)
         recipeObj.sourceVersion = package.getUpstreamVersion()
         recipeObj.populateLcache()
         if not recipeObj.needsCrossFlags():

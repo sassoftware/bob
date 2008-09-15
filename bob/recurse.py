@@ -72,8 +72,8 @@ def getPackagesFromTargets(targetPackages, helper, mangleData, targetConfigs):
     log.info('Loading troves')
 
     buildPackages = dict((x.getName(), x) for x in targetPackages)
-    targetShadows = ShadowBatch()
-    childShadows = ShadowBatch()
+    targetShadows = ShadowBatch(helper)
+    childShadows = ShadowBatch(helper)
 
     def _build(name, version, flavor, parent=None):
         '''
@@ -115,7 +115,7 @@ def getPackagesFromTargets(targetPackages, helper, mangleData, targetConfigs):
         targetShadows.addPackage(package)
     
     # Shadow and mangle all targets
-    targetShadows.shadow(helper, mangleData)
+    targetShadows.shadow(mangleData)
 
     # Now go back and recurse through the groups
     for package in targetPackages:
@@ -146,7 +146,7 @@ def getPackagesFromTargets(targetPackages, helper, mangleData, targetConfigs):
         package.deleteDownstreamSourceTrove()
 
     # Shadow and mangle all child troves
-    childShadows.shadow(helper, mangleData)
+    childShadows.shadow(mangleData)
 
     return buildPackages.values()
 

@@ -22,7 +22,7 @@ install: $(generated_files)
 	install -D -m755 bin/bob $(DESTDIR)$(bindir)/bob
 
 clean:
-	rm -f $(generated_files)
+	rm -f $(generated_files) bob/*.py[co]
 
 
 bob/version.py:

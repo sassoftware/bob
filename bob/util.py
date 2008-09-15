@@ -74,6 +74,25 @@ class ClientHelper(object):
         '''Call plugin hooks'''
         self.pluginMgr.callClientHook(*args)
 
+    def createChangeSet(self, items):
+        '''Create a changeset with files but no contents'''
+        return self.getRepos().createChangeSet(items,
+            withFileContents=False, recurse=False)
+
+
+class Container(object):
+    '''
+    A superclass to plain old container objects. Either subclass this
+    and define your desired attributes in C{__slots__}, or use
+    C{makeContainer} to generate one automatically.
+    '''
+
+    def __init__(self, **kwargs):
+        assert self.__class__ is not Container
+        for name in self.__class__.__slots__:
+            setattr(self, name, kwargs.pop(name, None))
+        assert not kwargs
+
 
 class ContextCache(object):
     '''
@@ -180,6 +199,14 @@ def findFile(troveCs, wantPath):
     raise RuntimeError('File "%s" not found in trove %s=%s[%s]',
         wantPath, troveCs.getName(), troveCs.getNewVersion(),
         troveCs.getNewFlavor())
+
+
+def makeContainer(name, slots):
+    '''
+    Create a new subclass of C{Container} from a C{name} and set of
+    C{slots}.
+    '''
+    return type(name, (Container,), {'__slots__': slots})
 
 
 def partial(func, *args, **kwargs):

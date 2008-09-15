@@ -191,6 +191,17 @@ class BobPackage(object):
         '''
         return self._targetConfig and self._targetConfig.siblingClone
 
+    def getBaseVersion(self):
+        '''
+        Get the "upstream version" template that will be substituted
+        into the mangled recipe, or the original version if no
+        substitution is to be done.
+        '''
+        if self._targetConfig.version:
+            return self._targetConfig.version
+        else:
+            return self._upstreamVersion.trailingRevision().getVersion()
+
     # Children
     def getChildren(self):
         '''
