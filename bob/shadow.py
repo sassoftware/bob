@@ -160,38 +160,40 @@ class ShadowBatch(object):
                 newVersion, recipeFileId)
 
             # Collect requested auto sources from recipe.
-            recipeFiles = dict((os.path.basename(x.getPath()), x)
-                for x in job.recipeObj.getSourcePathList())
-            sourceFiles = dict((x[1], x) for x in job.sourceTrove.getNewFileList())
-            oldFiles = job.oldTrove and dict((x[1], x)
-                for x in job.oldTrove.getNewFileList()) or {}
-            newFiles = set(x[1] for x in newTrove.iterFileList())
-
-            needFiles = set(recipeFiles) - newFiles
             modified = False
-            for autoPath in needFiles:
-                if autoPath in sourceFiles:
-                    pathId, path, fileId, fileVer = sourceFiles[autoPath]
-                    newTrove.addFile(pathId, path, fileVer, fileId)
-                elif autoPath in oldFiles:
-                    pathId, path, fileId, fileVer = oldFiles[autoPath]
-                    newTrove.addFile(pathId, path, fileVer, fileId)
-                else:
-                    source = recipeFiles[autoPath]
-                    cached = source.fetch()
+            if isPackageRecipe(job.recipeObj):
+                recipeFiles = dict((os.path.basename(x.getPath()), x)
+                    for x in job.recipeObj.getSourcePathList())
+                sourceFiles = dict((x[1], x)
+                    for x in job.sourceTrove.getNewFileList())
+                oldFiles = job.oldTrove and dict((x[1], x)
+                    for x in job.oldTrove.getNewFileList()) or {}
+                newFiles = set(x[1] for x in newTrove.iterFileList())
 
-                    autoPathId = os.urandom(16)
-                    autoObj = FileFromFilesystem(cached, autoPathId)
-                    autoObj.flags.isAutoSource(set=True)
-                    autoObj.flags.isSource(set=True)
-                    autoFileId = autoObj.fileId()
+                needFiles = set(recipeFiles) - newFiles
+                for autoPath in needFiles:
+                    if autoPath in sourceFiles:
+                        pathId, path, fileId, fileVer = sourceFiles[autoPath]
+                        newTrove.addFile(pathId, path, fileVer, fileId)
+                    elif autoPath in oldFiles:
+                        pathId, path, fileId, fileVer = oldFiles[autoPath]
+                        newTrove.addFile(pathId, path, fileVer, fileId)
+                    else:
+                        source = recipeFiles[autoPath]
+                        cached = source.fetch()
 
-                    autoContents = filecontents.FromFilesystem(cached)
-                    filesToAdd[autoFileId] = (autoObj, autoContents, False)
-                    newTrove.addFile(autoPathId, autoPath,
-                        newVersion, autoFileId)
+                        autoPathId = os.urandom(16)
+                        autoObj = FileFromFilesystem(cached, autoPathId)
+                        autoObj.flags.isAutoSource(set=True)
+                        autoObj.flags.isSource(set=True)
+                        autoFileId = autoObj.fileId()
 
-                    modified = True
+                        autoContents = filecontents.FromFilesystem(cached)
+                        filesToAdd[autoFileId] = (autoObj, autoContents, False)
+                        newTrove.addFile(autoPathId, autoPath,
+                            newVersion, autoFileId)
+
+                        modified = True
 
             # If no autosources were missing, check if anything
             # has changed at all.
