@@ -107,9 +107,7 @@ class ShadowBatch(object):
                 fObj.write(finalRecipe)
                 fObj.close()
 
-                print 'Loading %s' % job.package.getName()
                 recipeObj = _loadRecipe(self.helper, job.package, recipePath)
-                print 'Loaded %s=%s' % (job.package.getName(), recipeObj.version)
             finally:
                 shutil.rmtree(tempDir)
 
@@ -228,8 +226,6 @@ class ShadowBatch(object):
             log.debug('Created %s=%s', newTrove.getName(), newVersion)
             # TODO: maybe save the downstream trove object for group recursion
 
-        import sys; sys.exit(0)
-
         if doCommit:
             if compat.ConaryVersion().signAfterPromote():
                 cook.signAbsoluteChangeset(changeSet, None)
@@ -246,8 +242,6 @@ class ShadowBatch(object):
             version = macro.expand(job.package.getBaseVersion(), job.package)
             oldSpecs.append((job.package.getName(),
                 '%s/%s' % (targetLabel, version), None))
-
-        print 'Finding\n  ' + '\n  '.join('%s=%s' % x[:2] for x in oldSpecs)
 
         results = self.helper.getRepos().findTroves(None, oldSpecs,
             allowMissing=True)
