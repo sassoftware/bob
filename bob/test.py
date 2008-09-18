@@ -253,7 +253,11 @@ class TestSuite(object):
                     message = node.childNodes[1].childNodes[0].data
             elif node.getElementsByTagName('failure'):
                 status = TEST_FAIL
-                message = node.childNodes[1].childNodes[1].data
+                try:
+                    message = node.childNodes[1].childNodes[1].data
+                except IndexError, e:
+                    # flex style junit
+                    message = node.childNodes[1].childNodes[0].data
             else:
                 status = TEST_OK
 
