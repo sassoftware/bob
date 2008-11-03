@@ -9,6 +9,7 @@ Build, commit, and process troves in "batches"
 '''
 
 import logging
+import os
 import sys
 import time
 
@@ -26,7 +27,7 @@ from bob.util import partial, pushStopHandler, popStopHandler
 log = logging.getLogger('bob.cook')
 
 
-def stopJob(batch, signum, frame):
+def stopJob(batch, signum, _):
     '''
     Signal handler used during a cook job that will stop the job
     and exit.
@@ -61,6 +62,9 @@ class Batch(object):
         self._coverageData = None
 
     def isEmpty(self):
+        """
+        Returns C{True} if there are no troves in this job.
+        """
         return not self._troves
 
     def addTrove(self, bobTrove):
@@ -74,12 +78,12 @@ class Batch(object):
         macros = {}
         config = bobTrove.getTargetConfig()
 
-        commit = not config.noCommit
+        doCommit = not config.noCommit
         if self._commit is None:
-           self._commit = commit
-        elif self._commit != commit:
-            senseA = commit and "wants" or "does not want"
-            senseB = commit and "do not" or "do"
+            self._commit = doCommit
+        elif self._commit != doCommit:
+            senseA = doCommit and "wants" or "does not want"
+            senseB = doCommit and "do not" or "do"
             log.error("Package %s %s to commit, but existing packages "
                 "in batch %s", bobTrove.getPackageName(), senseA, senseB)
             log.error("Either all packages in a batch must commit, or none can")
@@ -149,8 +153,11 @@ class Batch(object):
         self._jobId = None
         popStopHandler()
 
-        # Check for error condition
+        # Pull out logs
         job = self._helper.getrMakeClient().getJob(jobId)
+        self.writeLogs(job)
+
+        # Check for error condition
         if job.isFailed():
             log.error('Job %d failed', jobId)
             raise JobFailedError(jobId=jobId, why='Job failed')
@@ -219,3 +226,39 @@ class Batch(object):
                 (set([statements]), set([missing])))])}
         '''
         return self._coverageData
+
+    def writeLogs(self, job):
+        """
+        Write build logs for job C{job} to the output directory.
+        """
+        jobDir = os.path.join('output', 'logs', str(job.jobId))
+        client = self._helper.getrMakeClient()
+        for trv in job.iterTroves():
+            troveDir = os.path.join(jobDir, '%s{%s}'
+                % (trv.getName(), trv.getContext()))
+            if not os.path.isdir(troveDir):
+                os.makedirs(troveDir)
+
+            troveLog = open(os.path.join(troveDir, 'trove.log'), 'w')
+            mark = 0
+            while True:
+                logs = client.getTroveLogs(job.jobId,
+                    trv.getNameVersionFlavor(True), mark)
+                if not logs:
+                    break
+                mark += len(logs)
+
+                for timeStamp, message, _ in logs:
+                    troveLog.write('[%s] %s\n' % (timeStamp, message))
+            troveLog.close()
+
+            buildLog = open(os.path.join(troveDir, 'build.log'), 'w')
+            mark = 0
+            while True:
+                _, logs, mark = client.getTroveBuildLog(job.jobId,
+                    trv.getNameVersionFlavor(True), mark)
+                if not logs:
+                    break
+                mark += len(logs)
+                buildLog.write(logs)
+            buildLog.close()
