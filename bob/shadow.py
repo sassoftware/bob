@@ -249,8 +249,11 @@ class ShadowBatch(object):
             oldSpecs.append((job.package.getName(),
                 '%s/%s' % (targetLabel, version), None))
 
+        # Get *all* troves with the right version so that we can find
+        # versions that are latest on the correct branch but have
+        # been occluded by a newer version on the wrong branch.
         results = self.helper.getRepos().findTroves(None, oldSpecs,
-            allowMissing=True)
+            allowMissing=True, getLeaves=False)
 
         toGet = []
         oldVersions = []
@@ -258,19 +261,15 @@ class ShadowBatch(object):
             package = job.package
             targetBranch = _getTargetBranch(package, targetLabel)
             if query in results:
-                # An old version was found.
-                assert len(results[query]) == 1
-                oldVersion = results[query][0][1]
+                # Filter the results to just those on the desired branch.
+                oldVersion = max(x[1] for x in results[query]
+                    if x[1].branch() == targetBranch)
                 parentVersion = package.getUpstreamVersion()
-
-                # In all cases, the old trove must be on the same
-                # branch
-                saneBranch = oldVersion.branch() == targetBranch
 
                 # In sibling clones, the trailing revision up to the
                 # source's parent's shadow count must be identical.
                 saneRevision = True
-                if package.isSiblingClone() and saneBranch:
+                if package.isSiblingClone():
                     oldRevision = oldVersion.trailingRevision()
                     oldCount = copy.deepcopy(oldRevision.sourceCount)
 
@@ -286,7 +285,7 @@ class ShadowBatch(object):
                 # If all preconditions match, fetch the old version
                 # so we can base the new version off that, or maybe
                 # even use it as-is.
-                if saneBranch and saneRevision:
+                if saneRevision:
                     toGet.append((package.getName(), (None, None),
                         (oldVersion, deps.Flavor()), True))
                     oldVersions.append((package.getName(), oldVersion,
