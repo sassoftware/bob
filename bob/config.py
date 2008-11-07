@@ -57,6 +57,7 @@ class BobConfig(cfg.SectionedConfigFile):
     recurseTroveRule        = CfgList(CfgString)
     shortenGroupFlavors     = (CfgBool, True)
     target                  = CfgList(CfgString)
+    showBuildLogs           = (CfgBool, False)
 
     # misc
     commitMessage           = (CfgString, 'Automated clone by bob3')

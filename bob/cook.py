@@ -147,7 +147,8 @@ class Batch(object):
         self._helper.callClientHook('client_preCommand2', main,
             self._helper.getrMakeHelper(), None)
         monitor.monitorJob(self._helper.getrMakeClient(), jobId,
-            exitOnFinish=True, displayClass=StatusOnlyDisplay)
+            exitOnFinish=True, displayClass=StatusOnlyDisplay,
+            showBuildLogs=self._helper.plan.showBuildLogs)
 
         # Remove the signal handler now that the job is done
         self._jobId = None
