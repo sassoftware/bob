@@ -21,7 +21,7 @@ from bob import hg
 from bob import recurse
 from bob import version
 from bob.errors import JobFailedError, TestFailureError
-from bob.macro import substILP, substResolveTroves
+from bob.macro import substILP, substResolveTroves, substStringList
 from bob.test import TestSuite
 from bob.trove import BobPackage
 from bob.util import ClientHelper, pushStopHandler, reportCommitMap
@@ -129,6 +129,7 @@ class BobMain(object):
             self._macros)
         cfg.resolveTroveTups = buildcmd._getResolveTroveTups(
             cfg, self._helper.getRepos())
+        cfg.autoLoadRecipes = substStringList(self._cfg.autoLoadRecipes)
 
         cfg.initializeFlavors()
 

@@ -63,3 +63,11 @@ def substResolveTroves(resolveTroves, macros):
         ret.append(newBucket)
 
     return ret
+
+
+def substStringList(lst, macros):
+    """
+    Substitute C{macros} into a list of strings.
+    """
+
+    return [ x % macros for x in lst ]
