@@ -48,6 +48,7 @@ class BobConfig(cfg.SectionedConfigFile):
     resolveTroves           = CfgList(CfgQuotedLineList(
                                 CfgTroveSpec))      # macros supported
     resolveTrovesOnly       = (CfgBool, False)
+    autoLoadRecipes         = (CfgList(CfgString), [])
     hg                      = CfgDict(CfgString)    # macros supported
 
     # build
