@@ -131,7 +131,7 @@ class Batch(object):
 
         # Create rMake job
         job = self._helper.getrMakeHelper().createBuildJob(list(self._troves),
-            buildConfig=self._helper.cfg, rebuild=True)
+            buildConfig=self._helper.cfg)
         jobId = self._helper.getrMakeClient().buildJob(job)
         log.info('Job %d started', jobId)
 
