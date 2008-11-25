@@ -129,7 +129,8 @@ class BobMain(object):
             self._macros)
         cfg.resolveTroveTups = buildcmd._getResolveTroveTups(
             cfg, self._helper.getRepos())
-        cfg.autoLoadRecipes = substStringList(self._cfg.autoLoadRecipes)
+        cfg.autoLoadRecipes = substStringList(self._cfg.autoLoadRecipes,
+                                              self._macros)
 
         cfg.initializeFlavors()
 
