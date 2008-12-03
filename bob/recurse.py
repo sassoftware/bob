@@ -71,9 +71,16 @@ def getPackagesFromTargets(targetPackages, helper, mangleData, targetConfigs):
 
     log.info('Loading troves')
 
+    def _checkTrove(troveTup, recurseRule=False):
+        if recurseRule:
+            rules = helper.plan.recurseTroveRule
+        else:
+            rules = helper.plan.matchTroveRule
+        return bool(_filterListByMatchSpecs(helper.cfg.reposName,
+                rules, [troveTup]))
+
     buildPackages = dict((x.getName(), x) for x in targetPackages
-            if _filterListByMatchSpecs(helper.cfg.reposName, 
-             helper.plan.matchTroveRule, [x.getUpstreamNameVersionFlavor()]))
+            if _checkTrove(x.getUpstreamNameVersionFlavor()))
     targetShadows = ShadowBatch(helper)
     childShadows = ShadowBatch(helper)
 
@@ -84,8 +91,7 @@ def getPackagesFromTargets(targetPackages, helper, mangleData, targetConfigs):
         '''
 
         # Check that the trove doesn't have a matchTroveRule against it
-        if not _filterListByMatchSpecs(helper.cfg.reposName,
-          helper.plan.matchTroveRule, [(name, version, deps.Flavor())]):
+        if not _checkTrove((name, version, deps.Flavor())):
             log.debug('Skipping %s=%s due to matchTroveRule', name, version)
             return
 
@@ -125,14 +131,18 @@ def getPackagesFromTargets(targetPackages, helper, mangleData, targetConfigs):
             continue
 
         # Check against recurseTroveRule to see if we should follow
-        if not _filterListByMatchSpecs(helper.cfg.reposName,
-          helper.plan.recurseTroveRule,
-          [package.getDownstreamNameVersionFlavor()]):
-            log.debug('Not following %s due to resolveTroveRule',
+        if not _checkTrove(package.getDownstreamNameVersionFlavor(),
+                recurseRule=True):
+            log.info('Not following %s due to recurseTroveRule',
                 package.getName())
             continue
 
-        log.info('Following %s' % package.getPackageName())
+        if _checkTrove(package.getDownstreamNameVersionFlavor()):
+            log.info('Following %s' % package.getPackageName())
+            included = True
+        else:
+            log.info('Following non-buildable %s' % package.getPackageName())
+            included = False
 
         for buildFlavor in package.getFlavors():
             # For every build flavor, recurse the group and get a
@@ -141,7 +151,7 @@ def getPackagesFromTargets(targetPackages, helper, mangleData, targetConfigs):
               recurseGroupInstance(helper, package, buildFlavor):
                 # Convert the tuple to a BobPackage
                 _build(newName, newVersion, newBuildFlavor,
-                    parent=package.getName())
+                    parent=included and package.getName() or None)
 
         # Clean up the Trove object loaded in recurseGroupInstance
         # so it doesn't waste memory
