@@ -71,7 +71,9 @@ def getPackagesFromTargets(targetPackages, helper, mangleData, targetConfigs):
 
     log.info('Loading troves')
 
-    buildPackages = dict((x.getName(), x) for x in targetPackages)
+    buildPackages = dict((x.getName(), x) for x in targetPackages
+            if _filterListByMatchSpecs(helper.cfg.reposName, 
+             helper.plan.matchTroveRule, [x.getUpstreamNameVersionFlavor()]))
     targetShadows = ShadowBatch(helper)
     childShadows = ShadowBatch(helper)
 
