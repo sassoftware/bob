@@ -262,8 +262,13 @@ class ShadowBatch(object):
             targetBranch = _getTargetBranch(package, targetLabel)
             if query in results:
                 # Filter the results to just those on the desired branch.
-                oldVersion = max(x[1] for x in results[query]
-                    if x[1].branch() == targetBranch)
+                oldVersionsForJob = [x[1] for x in results[query]
+                                       if x[1].branch() == targetBranch]
+                if not oldVersionsForJob:
+                    oldVersions.append(None)
+                    continue
+                oldVersion = max(potentialOldVersions)
+
                 parentVersion = package.getUpstreamVersion()
 
                 # In sibling clones, the trailing revision up to the
