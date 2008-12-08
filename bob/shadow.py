@@ -267,7 +267,7 @@ class ShadowBatch(object):
                 if not oldVersionsForJob:
                     oldVersions.append(None)
                     continue
-                oldVersion = max(potentialOldVersions)
+                oldVersion = max(oldVersionsForJob)
 
                 parentVersion = package.getUpstreamVersion()
 
