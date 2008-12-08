@@ -28,10 +28,12 @@ _DISTROS = {
                     '~nx, ~sse, ~sse2)'),
             ],
             'x86_64': [
-                F('~!dietlibc is: x86_64(~3dnow, ~3dnowext, ~nx)'),
                 F('~!dietlibc is: x86(~cmov, ~i486, ~i586, ~i686, ~mmx, '
                     '~nx, ~sse, ~sse2) x86_64(~3dnow, ~3dnowext, ~nx)'),
-            ]
+            ],
+            'x86_64_pure': [
+                F('~!dietlibc is: x86_64(~3dnow, ~3dnowext, ~nx)'),
+            ],
         },
     },
 
@@ -42,8 +44,10 @@ _DISTROS = {
                 F('is: x86(i486,i586,i686,sse,sse2)'),
             ],
             'x86_64': [
-                F('is: x86_64'),
                 F('is: x86(i486,i586,i686,sse,sse2) x86_64'),
+            ],
+            'x86_64_pure': [
+                F('is: x86_64'),
             ],
         },
     }
