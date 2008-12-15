@@ -27,11 +27,18 @@ def expand(raw, package):
     config = package.getTargetConfig()
     if config:
         if config.hg:
-            if data['hg'].has_key(config.hg):
-                macros['hg'] = data['hg'][config.hg][1]
+            name = config.hg
+            if data['scm'].has_key(name):
+                repos = data['scm'][name][0]
+                if repos.kind != 'hg':
+                    raise RuntimeError("SCM type mismatch on trove %s: "
+                            "referenced repository %r which is a %r "
+                            "repository using 'hg' directive." % (
+                                package.getPackageName(), name, repos.kind))
+                macros['hg'] = data['scm'][name][0].revision
             else:
                 logging.warning('Trove %s references undefined Hg '
-                    'repository %s', package.getPackageName(), config.hg)
+                    'repository %s', package.getPackageName(), name)
 
     _macros = Macros(macros)
     return raw % _macros

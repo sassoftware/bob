@@ -4,12 +4,21 @@
 # All rights reserved.
 #
 
+import os
+import time
+from conary.build.macros import Macros
 from conary.conarycfg import CfgFlavor, CfgLabel
 from conary.lib import cfg
 from conary.lib.cfgtypes import CfgList, CfgString, CfgInt, CfgDict
 from conary.lib.cfgtypes import CfgQuotedLineList, CfgBool, ParseError
 from conary.versions import Label
 from rmake.build.buildcfg import CfgTroveSpec
+
+from bob.util import SCMRepository
+
+
+DEFAULT_PATH = ['/etc/bobrc', '~/.bobrc']
+
 
 class BobTargetSection(cfg.ConfigSection):
     '''
@@ -60,12 +69,25 @@ class BobConfig(cfg.SectionedConfigFile):
     target                  = CfgList(CfgString)
     showBuildLogs           = (CfgBool, False)
 
+    # environment
+    scmMap                  = CfgList(CfgString)
+
     # misc
     commitMessage           = (CfgString, 'Automated clone by bob3')
     skipMacros              = (CfgList(CfgString), ['version'])
 
     # custom handling of sections
     _sectionMap = {'target': BobTargetSection, 'wiki': BobWikiSection}
+
+    def __init__(self):
+        cfg.SectionedConfigFile.__init__(self)
+        self.scmPins = {}
+
+    def read(self, path, **kwargs):
+        if path.startswith('http://') or path.startswith('https://'):
+            return cfg.SectionedConfigFile.readUrl(self, path, **kwargs)
+        else:
+            return cfg.SectionedConfigFile.read(self, path, **kwargs)
 
     def setSection(self, sectionName):
         if not self.hasSection(sectionName):
@@ -78,3 +100,74 @@ class BobConfig(cfg.SectionedConfigFile):
                 raise ParseError('Unknown section "%s"' % sectionName)
         self._sectionName = sectionName
         return self._sections[sectionName]
+
+    def setPins(self, scmPins):
+        self.scmPins = scmPins
+
+    def getMacros(self):
+        macros = Macros(self.macros)
+        macros['start_time'] = time.strftime('%Y%m%d_%H%M%S')
+        macros['target_label'] = self.targetLabel.asString()
+        return macros
+
+    def getRepositories(self, macros=None):
+        """
+        Get a mapping of SCM repository aliases to the repository
+        objects (which specify kind, hostname, path, and pinned
+        revision).
+        """
+
+        if self.scmPins:
+            # Someone already went to the trouble of determining what
+            # we have (e.g. they "pinned" the repositories)
+            return self.scmPins
+
+        if not macros:
+            macros = self.getMacros()
+
+        out = {}
+        for name, uri in self.hg.iteritems():
+            name %= macros
+            if ' ' in uri:
+                uri, revision = uri.split(' ', 1)
+                uri %= macros
+                revision %= macros
+            else:
+                uri %= macros
+                revision = None
+
+            scmPath = None
+            for scmMap in self.scmMap:
+                base, target = scmMap.split(' ', 1)
+                if uri.startswith(target):
+                    scmPath = base + uri[len(target):]
+                    break
+            else:
+                raise RuntimeError("Can't map hg URI %r back "
+                        "to a SCM path -- please add a scmMap" % uri)
+            repos = SCMRepository.fromString(scmPath)
+            repos.revision = revision
+            out[name] = repos
+
+        return out
+
+    def getUriForScm(self, repos):
+        if not isinstance(repos, basestring):
+            repos = repos.asString()
+        for scmMap in self.scmMap:
+            base, target = scmMap.split(' ', 1)
+            if repos.startswith(base):
+                return target + repos[len(base):]
+        raise RuntimeError("Can't map SCM repository %r to URI "
+                "-- please add a scmMap" % repos)
+
+
+def openPlan(path, preload=DEFAULT_PATH):
+    plan = BobConfig()
+    for item in preload:
+        if item.startswith('~/') and 'HOME' in os.environ:
+            item = os.path.join(os.environ['HOME'], item[2:])
+        if os.path.isfile(item):
+            plan.read(item)
+    plan.read(path)
+    return plan

@@ -77,7 +77,7 @@ def mVersion(package, recipe):
 
 
 RE_SOURCE = re.compile(
-    r'''^(\s+)(\S+)\.addMercurialSnapshot\s*\(.*?\).*?$''', re.M | re.S)
+    r'''^(\s+)(\S+)\.add(Archive|MercurialSnapshot)\s*\(.*?\).*?$''', re.M | re.S)
 @_register
 @_require_target_attribute('hg')
 def mSource(package, recipe):
@@ -85,12 +85,12 @@ def mSource(package, recipe):
     Modify addMercurialSnapshot calls to use the selected revision.
     '''
 
-    repo = package.getTargetConfig().hg
-    repoData = package.getMangleData()['hg']
-    if not repoData.has_key(repo):
+    name = package.getTargetConfig().hg
+    scmData = package.getMangleData()['scm']
+    if not scmData.has_key(name):
         logging.warning('Trove %s references undefined Hg repository %s',
-            package.getPackageName(), repo)
+            package.getPackageName(), name)
 
-    uri, node = repoData[repo]
+    repos, uri = scmData[name]
     return RE_SOURCE.sub(r'\1\2.addMercurialSnapshot(%r, tag=%r)'
-        % (str(uri), str(node)), recipe)
+        % (str(uri), str(repos.revision)), recipe)

@@ -4,6 +4,7 @@
 # All rights reserved.
 #
 
+import copy
 import logging
 import os
 import shutil
@@ -36,13 +37,13 @@ class BobMain(object):
         bcfg = buildcfg.BuildConfiguration(True)
         bcfg.readFiles()
 
-        self._cfg = config.BobConfig()
-        self._helper = ClientHelper(bcfg, self._cfg, pluginmgr)
+        self._cfg = None
+        self._helper = ClientHelper(bcfg, None, pluginmgr)
         self._targetConfigs = {}
         self._macros = {}
         
         # repo info
-        self._hg = {}
+        self._scm = {}
 
         # conary/rmake config
         if not hasattr(self._helper.cfg, 'reposName'):
@@ -51,18 +52,9 @@ class BobMain(object):
         self._testSuite = TestSuite()
         self._coverageData = {}
 
-    def readPlan(self, plan):
-        for cfgFile in ('/etc/bobrc', os.getenv('HOME', '/') + '/.bobrc'):
-            if os.path.exists(cfgFile):
-                self._cfg.read(cfgFile)
-
-        log.debug('Fetching plan %s', plan)
-        if plan.startswith('http://') or plan.startswith('https://'):
-            self._cfg.readUrl(plan)
-        else:
-            self._cfg.read(plan)
-
-        for name, section in self._cfg._sections.iteritems():
+    def setPlan(self, plan):
+        plan = copy.deepcopy(plan)
+        for name, section in plan._sections.iteritems():
             if not ':' in name:
                 continue
             sectype, name = name.split(':', 1)
@@ -70,6 +62,8 @@ class BobMain(object):
                 self._targetConfigs[name] = section
             else:
                 assert False
+        self._cfg = plan
+        self._helper.plan = plan
 
     def loadTargets(self):
         '''
@@ -105,12 +99,7 @@ class BobMain(object):
         Pre-build setup
         '''
         cfg = self._helper.cfg
-        self._macros = Macros(self._cfg.macros)
-
-        # Fill in automagic macros
-        self._macros['start_time'] = time.strftime('%Y%m%d_%H%M%S',
-            time.localtime())
-        self._macros['target_label'] = self._cfg.targetLabel.asString()
+        self._macros = self._cfg.getMacros()
 
         cfg.strictMode = True
         cfg.copyInConary = cfg.copyInConfig = False
@@ -147,22 +136,18 @@ class BobMain(object):
         self._helper.getrMakeClient().addRepositoryInfo(cfg)
         self._helper.configChanged()
 
-
-    def _freezeHg(self):
+    def _freezeScm(self):
         '''
         Obtain revisions of hg repositories
         '''
-
-        for name, uri in self._cfg.hg.iteritems():
-            name %= self._macros
-            if ' ' in uri:
-                uri, revision = uri.split(' ', 1)
-                uri %= self._macros
-                revision %= self._macros
-            else:
-                uri %= self._macros
-                revision = hg.get_tip(uri)
-            self._hg[name] = (uri, revision)
+        self._scm = {}
+        for name, repos in self._cfg.getRepositories(self._macros
+                ).iteritems():
+            uri = self._cfg.getUriForScm(repos)
+            if not repos.revision:
+                repos.revision = hg.get_tip(uri)
+            self._scm[name] = (repos, uri)
+            print '%s %s %s' % (name, uri, repos.revision)
 
     def _registerCommand(self, *args, **kwargs):
         'Fake rMake hook'
@@ -202,9 +187,9 @@ class BobMain(object):
         log.info('Initializing build')
         self._cleanArtifacts()
         self._configure()
-        self._freezeHg()
+        self._freezeScm()
 
-        mangleData = {  'hg': self._hg,
+        mangleData = {  'scm': self._scm,
                         'macros': self._macros,
                         'plan': self._cfg,
                         }
@@ -280,19 +265,7 @@ def stop(signum, frame):
     sys.exit('Signalled stop')
 
 
-def main(args):
-    rev = version.revision and ' (revision %s)' % version.revision or ''
-    print 'Bob the Builder version %s%s' % (version.version, rev)
-    print 'Copyright (c) 2008 rPath, Inc.'
-    print 'All rights reserved.'
-    print
-
-    try:
-        plan = args[0]
-    except IndexError:
-        print >>sys.stderr, 'Usage: %s <plan file or URI>' % sys.argv[0]
-        return 1
-
+def _main(plan):
     pushStopHandler(stop)
 
     addRootLogger()
@@ -303,8 +276,35 @@ def main(args):
     # Restore regular exception hook
     sys.excepthook = sys.__excepthook__
 
-    _main.readPlan(plan)
+    _main.setPlan(plan)
     return _main.run()
+
+
+def banner():
+    rev = version.revision and ' (revision %s)' % version.revision or ''
+    print 'Bob the Builder version %s%s' % (version.version, rev)
+    print 'Copyright (c) 2008 rPath, Inc.'
+    print 'All rights reserved.'
+    print
+
+
+def mainFromPlan(plan):
+    banner()
+    return _main(plan)
+
+
+def main(args):
+    banner()
+
+    try:
+        plan = args[0]
+    except IndexError:
+        print >>sys.stderr, 'Usage: %s <plan file or URI>' % sys.argv[0]
+        return 1
+
+    plan = config.openPlan(plan)
+    return _main(plan)
+
 
 if __name__ == '__main__':
     sys.exit(main(sys.argv[1:]))

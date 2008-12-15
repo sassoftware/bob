@@ -29,8 +29,8 @@ def get_tip(uri):
                     uri, _tip)
                 return _tip[:12]
     except IOError:
-        log.warning('Tips file does not exist while fetching repository %s',
-            uri)
+        log.warning('No explicit revision given for repository %s, '
+                'using latest', uri)
 
         hg_ui = ui.ui()
         repo = hg.repository(hg_ui, uri)

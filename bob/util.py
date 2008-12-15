@@ -86,9 +86,9 @@ class Container(object):
     and define your desired attributes in C{__slots__}, or use
     C{makeContainer} to generate one automatically.
     '''
+    __slots__ = []
 
     def __init__(self, **kwargs):
-        assert self.__class__ is not Container
         for name in self.__class__.__slots__:
             setattr(self, name, kwargs.pop(name, None))
         assert not kwargs
@@ -270,3 +270,21 @@ def reportCommitMap(commitMap):
             if ':' in builtTup[0]:
                 continue
             print '  %s=%s[%s]' % builtTup
+
+
+class SCMRepository(Container):
+    """
+    Pointer to a SCM repository (e.g. Hg) by host and path.
+    """
+    __slots__ = ['kind', 'host', 'path', 'revision']
+
+    @classmethod
+    def fromString(cls, val):
+        if '::' not in val:
+            raise ValueError("Invalid repository %r" % (val,))
+        kind, location = val.split('::', 1)
+        host, path = location.strip().split(':', 1)
+        return cls(kind=kind.strip(), host=host, path=path)
+
+    def asString(self):
+        return '%s::%s:%s' % (self.kind, self.host, self.path)
