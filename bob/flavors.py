@@ -249,15 +249,16 @@ def _populate_sets():
     '''
     Fill out C{SETS} on module load.
     '''
+    arches = ['x86', 'x86_64']
     for distro in _DISTROS:
         SETS[distro] = {
             'x86': _make_set(_PLAIN, distro, arches=['x86']),
             'x86_64': _make_set(_PLAIN, distro, arches=['x86_64']),
-            'plain': _make_set(_PLAIN, distro),
-            'dom0': _make_set(_DOMZ, distro),
-            'domU': _make_set(_DOMU, distro),
-            'appliance': _make_set(_PLAIN, distro) +
-                         _make_set(_DOMU, distro)  +
-                         _make_set(_VMWARE, distro),
+            'plain': _make_set(_PLAIN, distro, arches=arches),
+            'dom0': _make_set(_DOMZ, distro, arches=arches),
+            'domU': _make_set(_DOMU, distro, arches=arches),
+            'appliance': _make_set(_PLAIN, distro, arches=arches) +
+                         _make_set(_DOMU, distro, arches=arches)  +
+                         _make_set(_VMWARE, distro, arches=arches),
             }
 _populate_sets()
