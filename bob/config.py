@@ -65,6 +65,7 @@ class BobConfig(cfg.SectionedConfigFile):
                                 CfgString)          # macros supported
     matchTroveRule          = CfgList(CfgString)
     recurseTroveRule        = CfgList(CfgString)
+    rebuild                 = (CfgBool, False, "Use rMake's rebuild mode")
     shortenGroupFlavors     = (CfgBool, True)
     target                  = CfgList(CfgString)
     showBuildLogs           = (CfgBool, False)
