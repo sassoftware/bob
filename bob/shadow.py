@@ -267,7 +267,7 @@ class ShadowBatch(object):
                 if not oldVersionsForJob:
                     oldVersions.append(None)
                     continue
-                oldVersion = max(oldVersionsForJob)
+                oldVersion = _maxVersion(oldVersionsForJob)
 
                 parentVersion = package.getUpstreamVersion()
 
@@ -428,3 +428,28 @@ def _loadRecipe(helper, package, recipePath):
 
     # Just the class is enough for everything else
     return recipeClass
+
+
+def _maxVersion(versions):
+    """
+    Get the highest-numbered from a set of source C{versions}.
+
+    Uses timestamps to figure out the latest upstream version, then
+    compares source counts to compare within all versions with that
+    upstream version. This way, versions with oddly-ordered timestamps
+    don't throw off the new version generator.
+
+    For example, with these versions and timestamps:
+    /abcd-1     10:00
+    /efgh-1     15:00
+    /efgh-2     13:00
+
+    /efgh-2 would be picked as the maximum version, even though it
+    is older than /efgh-1.
+    """
+    maxRevision = max(versions).trailingRevision().version
+    candidates = [x for x in versions
+            if x.trailingRevision().version == maxRevision]
+    maxSourceCount = max(x.trailingRevision().sourceCount for x in candidates)
+    return max(x for x in candidates
+            if x.trailingRevision().sourceCount == maxSourceCount)
