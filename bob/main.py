@@ -112,14 +112,17 @@ class BobMain(object):
 
         # And these are a little more indirect
         cfg.buildLabel = self._cfg.targetLabel
-        cfg.installLabelPath = substILP([str(self._cfg.sourceLabel)] +
-            self._cfg.installLabelPath, self._macros)
         cfg.resolveTroves = substResolveTroves(self._cfg.resolveTroves,
             self._macros)
         cfg.resolveTroveTups = buildcmd._getResolveTroveTups(
             cfg, self._helper.getRepos())
         cfg.autoLoadRecipes = substStringList(self._cfg.autoLoadRecipes,
                                               self._macros)
+
+        installLabelPath = self._cfg.installLabelPath
+        if self._cfg.sourceLabel:
+            installLabelPath.insert(0, str(self._cfg.sourceLabel))
+        cfg.installLabelPath = substILP(installLabelPath, self._macros)
 
         cfg.initializeFlavors()
 
