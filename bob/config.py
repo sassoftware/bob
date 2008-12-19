@@ -55,7 +55,7 @@ class BobConfig(cfg.SectionedConfigFile):
     sourceLabel             = CfgLabel
     macros                  = CfgDict(CfgString)
     resolveTroves           = CfgList(CfgQuotedLineList(
-                                CfgTroveSpec))      # macros supported
+                                        CfgString)) # macros supported
     resolveTrovesOnly       = (CfgBool, False)
     autoLoadRecipes         = (CfgList(CfgString), [])
     hg                      = CfgDict(CfgString)    # macros supported

@@ -11,8 +11,9 @@ Mechanism for expanding macros from a trove context.
 import logging
 import time
 
-from conary.versions import Label
 from conary.build.macros import Macros
+from conary.conaryclient.cmdline import parseTroveSpec
+from conary.versions import Label
 
 
 def expand(raw, package):
@@ -62,11 +63,9 @@ def substResolveTroves(resolveTroves, macros):
     ret = []
     for bucket in resolveTroves:
         newBucket = []
-        for name, version, flavor in bucket:
-            name = name % macros
-            if version:
-                version = version % macros
-            newBucket.append((name, version, flavor))
+        for spec in bucket:
+            spec %= macros
+            newBucket.append(parseTroveSpec(spec))
         ret.append(newBucket)
 
     return ret
