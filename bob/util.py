@@ -276,7 +276,7 @@ class SCMRepository(Container):
     """
     Pointer to a SCM repository (e.g. Hg) by host and path.
     """
-    __slots__ = ['kind', 'host', 'path', 'revision']
+    __slots__ = ['kind', 'host', 'path', 'revision', 'uri']
 
     @classmethod
     def fromString(cls, val):
@@ -287,4 +287,6 @@ class SCMRepository(Container):
         return cls(kind=kind.strip(), host=host, path=path)
 
     def asString(self):
+        if None in (self.kind, self.host, self.path):
+            raise ValueError("Cannot stringify incomplete repository handle")
         return '%s::%s:%s' % (self.kind, self.host, self.path)

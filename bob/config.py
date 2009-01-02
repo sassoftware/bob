@@ -137,22 +137,26 @@ class BobConfig(cfg.SectionedConfigFile):
                 uri %= macros
                 revision = None
 
-            scmPath = None
+            repos = None
             for scmMap in self.scmMap:
+                # A right proper repository handle
                 base, target = scmMap.split(' ', 1)
                 if uri.startswith(target):
                     scmPath = base + uri[len(target):]
+                    repos = SCMRepository.fromString(scmPath)
                     break
             else:
-                raise RuntimeError("Can't map hg URI %r back "
-                        "to a SCM path -- please add a scmMap" % uri)
-            repos = SCMRepository.fromString(scmPath)
+                # Dummy handle that will at least let us go back
+                # to the URI later
+                repos = SCMRepository(uri=uri)
             repos.revision = revision
             out[name] = repos
 
         return out
 
     def getUriForScm(self, repos):
+        if isinstance(repos, SCMRepository) and repos.uri:
+            return repos.uri
         if not isinstance(repos, basestring):
             repos = repos.asString()
         for scmMap in self.scmMap:
