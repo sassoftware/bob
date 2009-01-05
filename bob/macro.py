@@ -31,12 +31,12 @@ def expand(raw, package):
             name = config.hg
             if data['scm'].has_key(name):
                 repos = data['scm'][name][0]
-                if repos.kind != 'hg':
+                if repos.kind not in (None, 'hg'):
                     raise RuntimeError("SCM type mismatch on trove %s: "
                             "referenced repository %r which is a %r "
                             "repository using 'hg' directive." % (
                                 package.getPackageName(), name, repos.kind))
-                macros['hg'] = data['scm'][name][0].revision
+                macros['hg'] = repos.revision
             else:
                 logging.warning('Trove %s references undefined Hg '
                     'repository %s', package.getPackageName(), name)
