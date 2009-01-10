@@ -38,15 +38,6 @@ class BobTargetSection(cfg.ConfigSection):
     serializeFlavors        = CfgBool
     noCommit                = CfgBool
 
-class BobWikiSection(cfg.ConfigSection):
-    '''
-    Configuration for writing coverage reports to mediawiki
-    (single section)
-    '''
-    root                    = CfgString
-    subdir                  = CfgString
-    page                    = CfgString
-    product                 = CfgString
 
 class BobConfig(cfg.SectionedConfigFile):
     targetLabel             = (CfgLabel, Label('bob3.rb.rpath.com@rpl:1'))
@@ -78,7 +69,7 @@ class BobConfig(cfg.SectionedConfigFile):
     skipMacros              = (CfgList(CfgString), ['version'])
 
     # custom handling of sections
-    _sectionMap = {'target': BobTargetSection, 'wiki': BobWikiSection}
+    _sectionMap = {'target': BobTargetSection}
 
     def __init__(self):
         cfg.SectionedConfigFile.__init__(self)
