@@ -131,7 +131,7 @@ class BobMain(object):
             if key in self._cfg.skipMacros:
                 continue
             try:
-                cfg.macros[key] = value % self._macros
+                cfg.configLine('macros %s %s' % (key, value % self._macros))
             except MacroKeyError:
                 # Maybe requires a build-time macro
                 pass
