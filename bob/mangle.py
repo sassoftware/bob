@@ -77,7 +77,7 @@ def mVersion(package, recipe):
 
 
 RE_SOURCE = re.compile(
-    r'''^(\s+)(\S+)\.addMercurialSnapshot\s*\(.*?\).*?$''', re.M | re.S)
+    r'''^(\s+)(\S+)\.add(Archive|MercurialSnapshot)\s*\(.*?\).*?$''', re.M | re.S)
 @_register
 @_require_target_attribute('hg')
 def mSource(package, recipe):
@@ -93,4 +93,4 @@ def mSource(package, recipe):
 
     repos, uri = scmData[name]
     return RE_SOURCE.sub(r'\1\2.addMercurialSnapshot(%r, tag=%r)'
-        % (str(uri), str(repos.revision)), recipe)
+        % (str(uri), str(repos.revision)), recipe, count=1)
