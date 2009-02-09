@@ -107,7 +107,7 @@ class BobMain(object):
         # These options translate directly from the plan to rMake
         # or conary
         for x in ('resolveTrovesOnly', 'shortenGroupFlavors',
-          'matchTroveRule'):
+          'matchTroveRule', 'defaultBuildReqs'):
             cfg[x] = self._cfg[x]
 
         # And these are a little more indirect

@@ -60,6 +60,7 @@ class BobConfig(cfg.SectionedConfigFile):
     shortenGroupFlavors     = (CfgBool, True)
     target                  = CfgList(CfgString)
     showBuildLogs           = (CfgBool, False)
+    defaultBuildReqs        = CfgDict(CfgString)
 
     # environment
     scmMap                  = CfgList(CfgString)
