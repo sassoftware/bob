@@ -107,7 +107,7 @@ class BobMain(object):
         # These options translate directly from the plan to rMake
         # or conary
         for x in ('resolveTrovesOnly', 'shortenGroupFlavors',
-          'matchTroveRule', 'defaultBuildReqs'):
+                'matchTroveRule'):
             cfg[x] = self._cfg[x]
 
         # And these are a little more indirect
@@ -118,6 +118,9 @@ class BobMain(object):
             cfg, self._helper.getRepos())
         cfg.autoLoadRecipes = substStringList(self._cfg.autoLoadRecipes,
                                               self._macros)
+        if not self._cfg.isDefault('defaultBuildReqs'):
+            cfg.defaultBuildReqs = substStringList(
+                    self._cfg.defaultBuildReqs, self._macros)
 
         installLabelPath = self._cfg.installLabelPath
         if self._cfg.sourceLabel:
