@@ -45,7 +45,12 @@ class BobPackage(object):
             raise TroveNotShadowError(name=self.getName(),
                 version=self.getUpstreamVersion())
 
-        self._children.update(targetConfig.after)
+        # The 'after' target option acts as a list of additional children to
+        # block on when splitting batches.
+        for after in targetConfig.after:
+            if ':' not in after:
+                after += ':source'
+            self._children.add(after)
 
     def __hash__(self):
         return hash((self._name, self._upstreamVersion))
