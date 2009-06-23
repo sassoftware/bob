@@ -28,6 +28,7 @@ class BobTargetSection(cfg.ConfigSection):
     '''
 
     hg                      = CfgString
+    after                   = CfgList(CfgString)
     flavor_mask             = CfgFlavor
     flavor_set              = CfgString
     flavor                  = CfgList(CfgString)

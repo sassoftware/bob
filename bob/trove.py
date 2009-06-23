@@ -45,6 +45,8 @@ class BobPackage(object):
             raise TroveNotShadowError(name=self.getName(),
                 version=self.getUpstreamVersion())
 
+        self._children.update(targetConfig.after)
+
     def __hash__(self):
         return hash((self._name, self._upstreamVersion))
 

@@ -153,7 +153,8 @@ class BobMain(object):
             if not repos.revision:
                 repos.revision = hg.get_tip(uri)
             self._scm[name] = (repos, uri)
-            print '%s %s %s' % (name, uri, repos.revision)
+            log.info("For repository %s, using %s revision %s", name, uri,
+                    repos.revision)
 
     def _registerCommand(self, *args, **kwargs):
         'Fake rMake hook'
