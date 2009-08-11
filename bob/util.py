@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2008 rPath, Inc.
+# Copyright (c) 2008-2009 rPath, Inc.
 #
 # All rights reserved.
 #
@@ -10,6 +10,7 @@ Utility functions
 
 import logging
 import md5
+import subprocess
 import signal
 import time
 
@@ -19,6 +20,17 @@ import rmake.cmdline.monitor
 import rmake.server.client
 
 log = logging.getLogger('bob.util')
+
+
+def checkBZ2(path):
+    """
+    Validate that C{path} is a valid bzip2 file.
+    """
+    devnull = open('/dev/null', 'w+')
+    proc = subprocess.Popen(['/usr/bin/bzip2', '-t', path], shell=False,
+            stdin=devnull, stdout=devnull, stderr=devnull)
+    proc.communicate()
+    return proc.returncode == 0
 
 
 class ClientHelper(object):

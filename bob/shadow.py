@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2008 rPath, Inc.
+# Copyright (c) 2008-2009 rPath, Inc.
 #
 # All rights reserved.
 #
@@ -23,6 +23,7 @@ from conary.changelog import ChangeLog
 from conary.conaryclient import filetypes
 from conary.deps import deps
 from conary.files import FileFromFilesystem, ThawFile
+from conary.lib.util import mkdirChain
 from conary.repository import filecontents
 from conary.repository.changeset import ChangedFileTypes, ChangeSet
 from conary.trove import Trove
@@ -31,7 +32,7 @@ from rmake import compat
 
 from bob import macro
 from bob.mangle import mangle
-from bob.util import findFile, makeContainer
+from bob.util import checkBZ2, findFile, makeContainer
 
 log = logging.getLogger('bob.shadow')
 
@@ -121,6 +122,7 @@ class ShadowBatch(object):
 
     def _merge(self):
         changeSet = ChangeSet()
+        deleteDirs = set()
         doCommit = False
 
         for job in self.jobs:
@@ -172,6 +174,7 @@ class ShadowBatch(object):
                     for x in job.sourceTrove.getNewFileList())
                 oldFiles = job.oldTrove and dict((x[1], x)
                     for x in job.oldTrove.getNewFileList()) or {}
+                oldFiles = dict()
                 newFiles = set(x[1] for x in newTrove.iterFileList())
 
                 needFiles = set(recipeFiles) - newFiles
@@ -184,15 +187,17 @@ class ShadowBatch(object):
                         newTrove.addFile(pathId, path, fileVer, fileId)
                     else:
                         source = recipeFiles[autoPath]
-                        cached = source.fetch()
+                        snapshot, delete = _getSnapshot(self.helper, source)
+                        if delete:
+                            deleteDirs.add(delete)
 
                         autoPathId = os.urandom(16)
-                        autoObj = FileFromFilesystem(cached, autoPathId)
+                        autoObj = FileFromFilesystem(snapshot, autoPathId)
                         autoObj.flags.isAutoSource(set=True)
                         autoObj.flags.isSource(set=True)
                         autoFileId = autoObj.fileId()
 
-                        autoContents = filecontents.FromFilesystem(cached)
+                        autoContents = filecontents.FromFilesystem(snapshot)
                         filesToAdd[autoFileId] = (autoObj, autoContents, False)
                         newTrove.addFile(autoPathId, autoPath,
                             newVersion, autoFileId)
@@ -236,6 +241,9 @@ class ShadowBatch(object):
             if compat.ConaryVersion().signAfterPromote():
                 cook.signAbsoluteChangeset(changeSet, None)
             self.helper.getRepos().commitChangeSet(changeSet)
+
+        for path in deleteDirs:
+            shutil.rmtree(path)
 
     def _getOldChangeSets(self):
         """
@@ -453,3 +461,34 @@ def _maxVersion(versions):
     maxSourceCount = max(x.trailingRevision().sourceCount for x in candidates)
     return max(x for x in candidates
             if x.trailingRevision().sourceCount == maxSourceCount)
+
+
+def _getSnapshot(helper, source):
+    """
+    Create a snapshot of a revision-control source in a temporary location.
+
+    Returns a tuple C{(path, delete)} where C{delete} is C{None} or a directory
+    that should be deleted after use.
+    """
+    # This function deals exclusively with SCC actions
+    if not hasattr(source, 'createSnapshot'):
+        return source.fetch(), None
+
+    fullPath = source.getFilename()
+    reposPath = '/'.join(fullPath.split('/')[:-1] + [ source.name ])
+    repositoryDir = source.recipe.laReposCache.getCachePath(source.recipe.name, reposPath)
+
+    if not os.path.exists(repositoryDir):
+        mkdirChain(os.path.dirname(repositoryDir))
+        source.createArchive(repositoryDir)
+    else:
+        source.updateArchive(repositoryDir)
+
+    tempDir = tempfile.mkdtemp()
+    snapPath = os.path.join(tempDir, os.path.basename(fullPath))
+    source.createSnapshot(repositoryDir, snapPath)
+
+    if fullPath.endswith('.bz2') and not checkBZ2(snapPath):
+        raise RuntimeError("Autosource file %r is corrupt!" % (snapPath,))
+
+    return snapPath, tempDir
