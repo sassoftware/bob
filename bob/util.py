@@ -9,7 +9,6 @@ Utility functions
 '''
 
 import logging
-import md5
 import subprocess
 import signal
 import time
@@ -18,6 +17,7 @@ import conary.conaryclient
 import rmake.cmdline.helper
 import rmake.cmdline.monitor
 import rmake.server.client
+from conary.lib.digestlib import md5
 
 log = logging.getLogger('bob.util')
 
@@ -127,7 +127,7 @@ class ContextCache(object):
         '''
 
         # Calculate a unique context name based on the specified settings
-        ctx = md5.new()
+        ctx = md5()
         ctx.update(build_flavor.freeze())
         for search_flavor in search_flavors:
             ctx.update(search_flavor.freeze())

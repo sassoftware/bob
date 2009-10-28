@@ -56,6 +56,9 @@ class BobConfig(cfg.SectionedConfigFile):
     installLabelPath        = CfgQuotedLineList(
                                 CfgString)          # macros supported
     matchTroveRule          = CfgList(CfgString)
+    noClean                 = (CfgBool, False,
+            "Don't clean the rMake chroot immediately "
+            "after a successful build.")
     recurseTroveRule        = CfgList(CfgString)
     rebuild                 = (CfgBool, False, "Use rMake's rebuild mode")
     shortenGroupFlavors     = (CfgBool, True)

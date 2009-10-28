@@ -51,6 +51,7 @@ class Batch(object):
 
         # setup
         self._contextCache = ContextCache(self._helper.cfg)
+        self._bobTroves = []
         self._troves = set()
         self._commit = None
 
@@ -116,6 +117,7 @@ class Batch(object):
                 macros)
 
             # Add the tuple to the build list
+            self._bobTroves.append(bobTrove)
             self._troves.add((bobTrove.getName(),
                 bobTrove.getDownstreamVersion(), buildFlavor, context))
 
@@ -133,7 +135,11 @@ class Batch(object):
         job = self._helper.getrMakeHelper().createBuildJob(list(self._troves),
             buildConfig=self._helper.cfg, rebuild=self._helper.plan.rebuild)
         jobId = self._helper.getrMakeClient().buildJob(job)
-        log.info('Job %d started', jobId)
+        log.info('Job %d started with these sources:', jobId)
+        for trove in self._bobTroves:
+            version = trove.getUpstreamVersion()
+            log.info(' %s=%s/%s', trove.getName(),
+                    version.trailingLabel(), version.trailingRevision())
 
         # Set a signal handler so we can stop the job if we get
         # interrupted

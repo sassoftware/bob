@@ -112,6 +112,7 @@ class BobMain(object):
 
         # And these are a little more indirect
         cfg.buildLabel = self._cfg.targetLabel
+        cfg.cleanAfterCook = not self._cfg.noClean
         cfg.resolveTroves = substResolveTroves(self._cfg.resolveTroves,
             self._macros)
         cfg.resolveTroveTups = buildcmd._getResolveTroveTups(
