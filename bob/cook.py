@@ -241,10 +241,17 @@ class Batch(object):
         jobDir = os.path.join('output', 'logs', str(job.jobId))
         client = self._helper.getrMakeClient()
         for trv in job.iterTroves():
-            troveDir = os.path.join(jobDir, '%s{%s}'
-                % (trv.getName(), trv.getContext()))
+            troveName = '%s{%s}' % (trv.getName(), trv.getContext())
+            troveDir = os.path.join(jobDir, troveName)
             if not os.path.isdir(troveDir):
                 os.makedirs(troveDir)
+
+            toStdout = False
+            prefix = '[%s] ' % troveName
+            if trv.isFailed():
+                toStdout = True
+                print >> sys.stderr, 'Trove %s failed to build:' % troveName
+                sys.stderr.flush()
 
             troveLog = open(os.path.join(troveDir, 'trove.log'), 'w')
             mark = 0
@@ -256,7 +263,11 @@ class Batch(object):
                 mark += len(logs)
 
                 for timeStamp, message, _ in logs:
-                    troveLog.write('[%s] %s\n' % (timeStamp, message))
+                    for line in message.splitlines():
+                        line = '[%s] %s\n' % (timeStamp, line.rstrip())
+                        troveLog.write(line)
+                        if toStdout:
+                            sys.stdout.write(prefix + line)
             troveLog.close()
 
             buildLog = open(os.path.join(troveDir, 'build.log'), 'w')
@@ -268,4 +279,11 @@ class Batch(object):
                     break
                 mark += len(logs)
                 buildLog.write(logs)
+                if toStdout:
+                    for line in logs.splitlines():
+                        print prefix + line.rstrip()
             buildLog.close()
+
+            if toStdout:
+                print >> sys.stdout
+                sys.stdout.flush()
