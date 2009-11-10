@@ -284,6 +284,15 @@ class Batch(object):
                         print prefix + line.rstrip()
             buildLog.close()
 
+            failureReason = trv.getFailureReason()
+            if failureReason:
+                if failureReason.hasTraceback():
+                    fObj = open(os.path.join(troveDir, 'traceback.log'), 'w')
+                    fObj.write(failureReason.getTraceback())
+                    if toStdout:
+                        sys.stdout.write(failureReason.getTraceback())
+                    fObj.close()
+
             if toStdout:
                 print >> sys.stdout
                 sys.stdout.flush()
