@@ -138,30 +138,32 @@ class ShadowBatch(object):
                 newVersion = _createVersion(job.package, self.helper,
                     job.recipeObj.version)
 
-            newTrove = Trove(job.sourceTrove)
-            newTrove.changeVersion(newVersion)
+            newTrove = Trove(job.sourceTrove.getName(), newVersion,
+                    deps.Flavor())
 
-            # Remove all auto sources.
-            for pathId, path, fileId, fileVer in list(newTrove.iterFileList()):
+            # Copy non-autosource, non-recipe files from the source trove.
+            recipePathId = None
+            for pathId, path, fileId, fileVer in (
+                    job.sourceTrove.getNewFileList()):
+                if path == job.package.getRecipeName():
+                    recipePathId = pathId
+                    continue
                 fileChange = self.sourceChangeSet.getFileChange(None, fileId)
                 fileObj = ThawFile(fileChange, pathId)
                 if fileObj.flags.isAutoSource():
-                    newTrove.removeFile(pathId)
+                    continue
+                newTrove.addFile(pathId, path, fileVer, fileId)
+            assert recipePathId
 
-            # Create a filestream for the recipe.
+            # Add the recipe.
             recipeFileHelper = filetypes.RegularFile(contents=job.recipe,
                 config=True)
-            recipePathId = findFile(job.sourceTrove,
-                job.package.getRecipeName())[0]
             recipeFile = recipeFileHelper.get(recipePathId)
             recipeFile.flags.isSource(set=True)
             recipeFileId = recipeFile.fileId()
 
             filesToAdd[recipeFileId] = (recipeFile, recipeFileHelper.contents,
                 True)
-
-            # Substitute the recipe into the new trove.
-            newTrove.removeFile(recipePathId)
             newTrove.addFile(recipePathId, job.package.getRecipeName(),
                 newVersion, recipeFileId)
 
