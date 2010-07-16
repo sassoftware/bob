@@ -12,8 +12,8 @@
 # full details.
 #
 
-MAJOR=4.0
-VERSION=4.0.0
+MAJOR=3.1
+VERSION=3.1.0
 
 
 PYVER=$(shell python -c 'import sys; print(sys.version[0:3])')
