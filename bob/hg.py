@@ -48,7 +48,6 @@ def clone(hgui, uri, cacheDir):
     dirPath = uri.split('//', 1)[-1]
     dirPath = dirPath.replace('/', '_')
     dirPath = os.path.join(cacheDir, dirPath, 'hg')
-    log.info("Updating clone of %s into %s", uri, dirPath)
 
     if not os.path.isdir(dirPath):
         os.makedirs(dirPath)
