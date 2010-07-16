@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2008 rPath, Inc.
+# Copyright (c) 2010 rPath, Inc.
 #
 # All rights reserved.
 #
@@ -9,9 +9,8 @@ import logging
 import os
 import shutil
 import sys
-import time
 
-from conary.build.macros import Macros, MacroKeyError
+from conary.build.macros import MacroKeyError
 from rmake import plugins
 from rmake.cmdline import buildcmd
 from rmake.build import buildcfg
@@ -19,7 +18,9 @@ from rmake.build import buildcfg
 from bob import config
 from bob import coverage
 from bob import hg
+from bob import flavors
 from bob import recurse
+from bob import shadow
 from bob import version
 from bob.errors import JobFailedError, TestFailureError
 from bob.macro import substILP, substResolveTroves, substStringList
@@ -70,27 +71,33 @@ class BobMain(object):
         Locate source troves and yield a BobPackage for each of them.
         '''
 
-        # First, find versions for targets
-        query = []
-        for name in self._cfg.target:
-            sourceName = name.split(':')[0] + ':source'
-            section = self._targetConfigs.get(name, None)
-            sourceLabel = (section and section.sourceLabel) or \
-                self._cfg.sourceLabel
-            query.append((sourceName, str(sourceLabel), None))
-
-        response = self._helper.getRepos().findTroves(None, query)
-
         targetPackages = []
-        for matches in response.itervalues():
-            latestVersion = max(x[1] for x in matches)
-            sourceName, sourceVersion, _ = [
-                x for x in matches if x[1] == latestVersion][0]
-            packageName = sourceName.split(':')[0]
-            targetConfig = self._targetConfigs.get(packageName, None)
+        batch = shadow.ShadowBatch(self._helper)
+        mangleData = {  'scm': self._scm,
+                        'macros': self._macros,
+                        'plan': self._cfg,
+                        }
+        for name in self._cfg.target:
+            packageName = name.split(':')[0]
+            sourceName = packageName + ':source'
+            targetConfig = self._targetConfigs.get(name, None)
+            if not targetConfig.sourceTree:
+                raise RuntimeError("Target %s requires a sourceTree setting" %
+                        (sourceName,))
+            repo, subpath = targetConfig.sourceTree.split(None, 1)
+            scm = self._scm[repo][0]
+            cacheDir = os.path.join(self._helper.cfg.lookaside, packageName)
+            recipeFiles = hg.getRecipe(scm.uri, scm.revision, subpath, cacheDir)
 
-            targetPackages.append(BobPackage(sourceName, sourceVersion, 
-                                             targetConfig))
+            package = BobPackage(sourceName, targetConfig, recipeFiles)
+            package.setMangleData(mangleData)
+            package.addFlavors(flavors.expand_targets(targetConfig))
+
+            targetPackages.append(package)
+            batch.addPackage(package)
+
+        batch.shadow()
+
 
         return targetPackages
 
@@ -106,8 +113,7 @@ class BobMain(object):
 
         # These options translate directly from the plan to rMake
         # or conary
-        for x in ('resolveTrovesOnly', 'shortenGroupFlavors',
-                'matchTroveRule'):
+        for x in ('resolveTrovesOnly', 'shortenGroupFlavors'):
             cfg[x] = self._cfg[x]
 
         # And these are a little more indirect
@@ -124,8 +130,6 @@ class BobMain(object):
                     self._cfg.defaultBuildReqs, self._macros)
 
         installLabelPath = self._cfg.installLabelPath
-        if self._cfg.sourceLabel:
-            installLabelPath.insert(0, str(self._cfg.sourceLabel))
         cfg.installLabelPath = substILP(installLabelPath, self._macros)
 
         cfg.initializeFlavors()
@@ -197,19 +201,12 @@ class BobMain(object):
         self._configure()
         self._freezeScm()
 
-        mangleData = {  'scm': self._scm,
-                        'macros': self._macros,
-                        'plan': self._cfg,
-                        }
-
         # Translate configuration into BobPackage objects
         targetPackages = self.loadTargets()
-        allPackages = recurse.getPackagesFromTargets(targetPackages,
-            self._helper, mangleData, self._targetConfigs)
 
         # Run and commit each batch
         commitMap = {}
-        for batch in recurse.getBatchFromPackages(self._helper, allPackages):
+        for batch in recurse.getBatchFromPackages(self._helper, targetPackages):
             try:
                 commitMap.update(batch.run(self))
             except JobFailedError, e:
@@ -254,7 +251,7 @@ def addRootLogger():
         '%(name)s %(message)s')
     handler.setFormatter(formatter)
     root_log.addHandler(handler)
-    root_log.setLevel(logging.INFO)
+    root_log.setLevel(logging.DEBUG)
 
     # Delete conary's log handler since it puts things on stderr and without
     # any timestamps.
@@ -290,8 +287,8 @@ def _main(plan):
 
 def banner():
     rev = version.revision and ' (revision %s)' % version.revision or ''
-    print 'Bob the Builder version %s%s' % (version.version, rev)
-    print 'Copyright (c) 2008 rPath, Inc.'
+    print 'Bob the Constructinator version %s%s' % (version.version, rev)
+    print 'Copyright (c) 2010 rPath, Inc.'
     print 'All rights reserved.'
     print
 

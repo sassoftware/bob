@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2008 rPath, Inc.
+# Copyright (c) 2010 rPath, Inc.
 #
 # All rights reserved.
 #
@@ -9,6 +9,7 @@ Helper functions for dealing with mercurial (hg) repositories.
 '''
 
 import logging
+import os
 
 from mercurial import hg, ui
 from mercurial.node import short
@@ -40,3 +41,43 @@ def get_tip(uri):
     else:
         raise RuntimeError('tips file exists, but does not contain '
             'repository %s' % uri)
+
+
+def clone(hgui, uri, cacheDir):
+    """Make or update a clone of the given repository."""
+    dirPath = uri.split('//', 1)[-1]
+    dirPath = dirPath.replace('/', '_')
+    dirPath = os.path.join(cacheDir, dirPath, 'hg')
+    log.info("Updating clone of %s into %s", uri, dirPath)
+
+    if not os.path.isdir(dirPath):
+        os.makedirs(dirPath)
+    if os.path.isdir(dirPath + '/.hg'):
+        repo = hg.repository(hgui, dirPath)
+    else:
+        repo = hg.repository(hgui, dirPath, create=True)
+    remote = hg.repository(hgui, uri)
+    repo.pull(remote, force=True)
+    return repo
+
+
+def getRecipe(uri, rev, subpath, cacheDir):
+    """Get file contents for a subset of the given hg repository."""
+    hgui = ui.ui()
+    repo = hg.repository(hgui, uri)
+    if not hg.islocal(repo):
+        repo = clone(hgui, uri, cacheDir)
+
+    subpath = subpath.strip('/').split('/')
+    splen = len(subpath)
+
+    files = {}
+    cctx = repo.changectx(rev)
+    for filepath in cctx:
+        name = filepath.split('/')
+        if name[:splen] == subpath:
+            fctx = cctx.filectx(filepath)
+            newname = '/'.join(name[splen:])
+            files[newname] = fctx.data()
+
+    return files

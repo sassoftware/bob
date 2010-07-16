@@ -1,12 +1,30 @@
+#
+# Copyright (c) 2010 rPath, Inc.
+#
+# This program is distributed under the terms of the Common Public License,
+# version 1.0. A copy of this license should have been distributed with this
+# source file in a file called LICENSE. If it is not present, the license
+# is always available at http://www.rpath.com/permanent/licenses/CPL-1.0.
+#
+# This program is distributed in the hope that it will be useful, but
+# without any warranty; without even the implied warranty of merchantability
+# or fitness for a particular purpose. See the Common Public License for
+# full details.
+#
+#
 prefix = /usr
-lib = $(shell arch | sed -r '/x86_64|ppc64|s390x|sparc64/{s/.*/lib64/;q};s/.*/lib/')
+export lib = $(shell uname -m | sed -r '/x86_64|ppc64|s390x|sparc64/{s/.*/lib64/;q};s/.*/lib/')
 libdir = $(prefix)/$(lib)
 bindir = $(prefix)/bin
 
 export DESTDIR=
-PYTHON=/usr/bin/python2.4
+PYVER=$(shell python -c 'import sys; print(sys.version[0:3])')
+PYTHON = /usr/bin/python${PYVER}
 PYCFLAGS=-c 'import compileall, sys;[compileall.compile_dir(x, ddir=x.replace("$(DESTDIR)", ""), quiet=1) for x in sys.argv[1:]]'
-VERSION=3.1
+VERSION=4.0
+
+sitepkg = $(libdir)/python$(PYVER)/site-packages
+bobdir = $(sitepkg)/bob
 
 generated_files = bob/version.py
 
@@ -15,10 +33,9 @@ generated_files = bob/version.py
 all: $(generated_files)
 
 install: $(generated_files)
-	mkdir -p "$(DESTDIR)$(libdir)/python2.4/site-packages/bob"
-	cp -a bob/*.py "$(DESTDIR)$(libdir)/python2.4/site-packages/bob/"
-	$(PYTHON) $(PYCFLAGS) "$(DESTDIR)$(libdir)/python2.4/site-packages/bob"
-	$(PYTHON) -O $(PYCFLAGS) "$(DESTDIR)$(libdir)/python2.4/site-packages/bob"
+	mkdir -p "$(DESTDIR)$(bobdir)"
+	cp -a bob/*.py "$(DESTDIR)$(bobdir)/"
+	$(PYTHON) $(PYCFLAGS) "$(DESTDIR)$(bobdir)"
 	install -D -m755 bin/bob $(DESTDIR)$(bindir)/bob
 
 clean:

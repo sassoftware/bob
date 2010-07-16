@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2008 rPath, Inc.
+# Copyright (c) 2010 rPath, Inc.
 #
 # All rights reserved.
 #
@@ -11,7 +11,6 @@ Internal representation of a build trove
 from conary.deps.deps import Flavor
 
 from bob.config import BobTargetSection
-from bob.errors import TroveNotShadowError
 
 
 class BobPackage(object):
@@ -23,53 +22,48 @@ class BobPackage(object):
     packages for group sources, and cached trove objects.
     '''
 
-    def __init__(self, name, upstreamVersion, targetConfig=None):
+    def __init__(self, name, targetConfig, recipeFiles):
         assert name.endswith(':source')
 
         if targetConfig is None:
             targetConfig = BobTargetSection(None)
 
-        self._name = name
-        self._targetConfig = targetConfig
-        self._upstreamVersion = upstreamVersion
+        self.name = name
+        self.targetConfig = targetConfig
+        self.recipeFiles = recipeFiles
 
-        self._children = set()
-        self._downstreamTrove = None
-        self._downstreamVersion = None
-        self._flavors = set()
-        self._mangleData = None
-        self._trove = None
-
-        if self.isSiblingClone() \
-          and not self._upstreamVersion.hasParentVersion():
-            raise TroveNotShadowError(name=self.getName(),
-                version=self.getUpstreamVersion())
+        self.children = set()
+        self.downstreamTrove = None
+        self.downstreamVersion = None
+        self.flavors = set()
+        self.mangleData = None
+        self.trove = None
 
         # The 'after' target option acts as a list of additional children to
         # block on when splitting batches.
         for after in targetConfig.after:
             if ':' not in after:
                 after += ':source'
-            self._children.add(after)
+            self.children.add(after)
 
     def __hash__(self):
-        return hash((self._name, self._upstreamVersion))
+        return hash(self.name)
 
     def __repr__(self):
-        return 'BobPackage(%s=%s)' % (self._name, self._upstreamVersion)
+        return 'BobPackage(%r)' % (self.name,)
 
     # Name
     def getName(self):
         '''
         Get the source name of the package; e.g. foobar:source
         '''
-        return self._name
+        return self.name
 
     def getPackageName(self):
         '''
         Get the package's base name; e.g. foobar
         '''
-        return self._name.split(':')[0]
+        return self.name.split(':')[0]
 
     def getRecipeName(self):
         '''
@@ -77,30 +71,12 @@ class BobPackage(object):
         '''
         return self.getPackageName() + '.recipe'
 
-    # Upstream version
-    def getUpstreamVersion(self):
-        '''
-        Get the upstream source version that is selected at the start
-        of the build.
-        '''
-        return self._upstreamVersion
-
-    def getUpstreamNameVersion(self):
-        '''
-        Return a tuple similar to
-        C{x.getName(), x.getUpstreamVersion()}.
-        '''
-        return self._name, self._upstreamVersion
-
-    def getUpstreamNameVersionFlavor(self):
-        '''
-        Return a tuple similar to
-        C{x.getName(), x.getUpstreamVersion(), deps.Flavor()}.
-
-        Note that the flavor is empty as this is referring only to the
-        source trove, not to any built object.
-        '''
-        return self._name, self._upstreamVersion, Flavor()
+    # Upstream contents
+    def getRecipe(self):
+        try:
+            return self.recipeFiles[self.getRecipeName()]
+        except KeyError:
+            raise RuntimeError("Trove %s recipe is missing!" % (self.name,))
 
     # Downstream version
     def hasDownstreamVersion(self):
@@ -108,7 +84,7 @@ class BobPackage(object):
         Return C{True} if a downstream (shadowed or cloned) version
         has been set.
         '''
-        return self._downstreamVersion is not None
+        return self.downstreamVersion is not None
 
     def setDownstreamVersion(self, version):
         '''
@@ -119,8 +95,8 @@ class BobPackage(object):
         @param version: The downstream version
         @type  version: L{Version<conary.versions.Version>}
         '''
-        assert not self._downstreamVersion
-        self._downstreamVersion = version
+        assert not self.downstreamVersion
+        self.downstreamVersion = version
 
     def getDownstreamVersion(self):
         '''
@@ -128,18 +104,18 @@ class BobPackage(object):
         package. The downstream version must have been previously set,
         or C{ValueError} will be raised.
         '''
-        if not self._downstreamVersion:
+        if not self.downstreamVersion:
             raise ValueError('Downstream version not yet allocated')
-        return self._downstreamVersion
+        return self.downstreamVersion
 
     def getDownstreamNameVersion(self):
         '''
         Return a tuple similar to
         C{x.getName(), x.getDownstreamNameVersion()}.
         '''
-        if not self._downstreamVersion:
+        if not self.downstreamVersion:
             raise ValueError('Downstream version not yet allocated')
-        return self._name, self._downstreamVersion
+        return self.name, self.downstreamVersion
 
     def getDownstreamNameVersionFlavor(self):
         '''
@@ -149,9 +125,9 @@ class BobPackage(object):
         Note that the flavor is empty as this is referring only to the
         source trove, not to any built object.
         '''
-        if not self._downstreamVersion:
+        if not self.downstreamVersion:
             raise ValueError('Downstream version not yet allocated')
-        return self._name, self._downstreamVersion, Flavor()
+        return self.name, self.downstreamVersion, Flavor()
 
     # Flavors
     def getFlavors(self):
@@ -160,7 +136,7 @@ class BobPackage(object):
 
         @rtype: C{set}
         '''
-        return self._flavors
+        return self.flavors
 
     def addFlavors(self, flavors):
         '''
@@ -169,7 +145,7 @@ class BobPackage(object):
         @param flavors: A set of new flavors to add to the build list
         @type  flavors: iterable
         '''
-        self._flavors.update(flavors)
+        self.flavors.update(flavors)
 
     def setFlavors(self, flavors):
         '''
@@ -178,7 +154,7 @@ class BobPackage(object):
         @param flavors: A set of new flavors to replace the build list
         @type  flavors: iterable
         '''
-        self._flavors = set(flavors)
+        self.flavors = set(flavors)
 
     # Target configuration
     def getTargetConfig(self):
@@ -186,17 +162,7 @@ class BobPackage(object):
         Get the configuration section specific to this package, or
         an empty configuration section if none was provided.
         '''
-        return self._targetConfig
-
-    def isSiblingClone(self):
-        '''
-        Return C{True} if this package is configured to be sibling
-        cloned instead of shadowed, or C{False} if it will be shadowed
-        (the default).
-
-        @rtype: bool
-        '''
-        return self._targetConfig and self._targetConfig.siblingClone
+        return self.targetConfig
 
     def getBaseVersion(self):
         '''
@@ -204,10 +170,7 @@ class BobPackage(object):
         into the mangled recipe, or the original version if no
         substitution is to be done.
         '''
-        if self._targetConfig.version:
-            return self._targetConfig.version
-        else:
-            return self._upstreamVersion.trailingRevision().getVersion()
+        return self.targetConfig.version
 
     # Children
     def getChildren(self):
@@ -224,7 +187,7 @@ class BobPackage(object):
         @return: source names that are children of this package
         @rtype : set
         '''
-        return self._children
+        return self.children
 
     def addChild(self, child):
         '''
@@ -234,7 +197,7 @@ class BobPackage(object):
                       added to the current package.
         @type  child: str
         '''
-        self._children.add(child)
+        self.children.add(child)
 
     # Repository
     def getDownstreamSourceTrove(self, helper):
@@ -248,17 +211,17 @@ class BobPackage(object):
         @type  helper: L{ClientHelper<bob.util.ClientHelper>}
         @rtype: L{Trove<conary.trove.Trove>}
         '''
-        if not self._trove:
-            self._downstreamTrove = helper.getRepos().getTrove(
+        if not self.trove:
+            self.downstreamTrove = helper.getRepos().getTrove(
                 *self.getDownstreamNameVersionFlavor())
-        return self._downstreamTrove
+        return self.downstreamTrove
 
     def deleteDownstreamSourceTrove(self):
         '''
         Delete a previously cached downstream source trove from
         C{getDownstreamSourceTrove}.
         '''
-        self._downstreamTrove = None
+        self.downstreamTrove = None
 
     # Mangling
     def setMangleData(self, data):
@@ -270,13 +233,13 @@ class BobPackage(object):
                      recipe.
         @type  data: dict
         '''
-        self._mangleData = data
+        self.mangleData = data
 
     def getMangleData(self):
         '''
         Get the mangling data previously set by C{setMangleData}.
         Raises C{ValueError} if none was set.
         '''
-        if not self._mangleData:
+        if not self.mangleData:
             raise ValueError('Mangle data not set')
-        return self._mangleData
+        return self.mangleData

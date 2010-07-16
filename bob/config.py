@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2008 rPath, Inc.
+# Copyright (c) 2010 rPath, Inc.
 #
 # All rights reserved.
 #
@@ -9,10 +9,9 @@ import time
 from conary.build.macros import Macros
 from conary.conarycfg import CfgFlavor, CfgLabel
 from conary.lib import cfg
-from conary.lib.cfgtypes import CfgList, CfgString, CfgInt, CfgDict
+from conary.lib.cfgtypes import CfgList, CfgString, CfgDict
 from conary.lib.cfgtypes import CfgQuotedLineList, CfgBool, ParseError
 from conary.versions import Label
-from rmake.build.buildcfg import CfgTroveSpec
 
 from bob.util import SCMRepository
 
@@ -33,18 +32,17 @@ class BobTargetSection(cfg.ConfigSection):
     flavor_set              = CfgString
     flavor                  = CfgList(CfgString)
     macros                  = CfgDict(CfgString)
-    siblingClone            = (CfgBool, False)
     version                 = CfgString             # macros supported
-    sourceLabel             = CfgLabel
+    sourceTree              = CfgString
     serializeFlavors        = CfgBool
     noCommit                = CfgBool
 
 
 class BobConfig(cfg.SectionedConfigFile):
-    targetLabel             = (CfgLabel, Label('bob3.rb.rpath.com@rpl:1'))
+    targetLabel             = CfgLabel
 
     # source
-    sourceLabel             = CfgLabel
+    sourceLabel             = CfgString             # DEPRECATED (ignored)
     macros                  = CfgDict(CfgString)
     resolveTroves           = CfgList(CfgQuotedLineList(
                                         CfgString)) # macros supported
@@ -55,12 +53,9 @@ class BobConfig(cfg.SectionedConfigFile):
     # build
     installLabelPath        = CfgQuotedLineList(
                                 CfgString)          # macros supported
-    matchTroveRule          = CfgList(CfgString)
     noClean                 = (CfgBool, False,
             "Don't clean the rMake chroot immediately "
             "after a successful build.")
-    recurseTroveRule        = CfgList(CfgString)
-    rebuild                 = (CfgBool, False, "Use rMake's rebuild mode")
     shortenGroupFlavors     = (CfgBool, True)
     target                  = CfgList(CfgString)
     showBuildLogs           = (CfgBool, False)
