@@ -32,6 +32,7 @@ generated_files = bob/version.py bin/setup.py bin/bob
 .PHONY: bob/version.py all install clean
 
 all: $(generated_files)
+	$(PYTHON) bin/setup.py egg_info
 
 install: $(generated_files)
 	# This should be roughly equivalent to bdist_egg && easy_install -m,
@@ -64,7 +65,7 @@ bob/version.py:
 
 bin/bob: bin/bob.in
 	echo "#!$(PYTHON)" >$@
-	sed -e 's/@VERSION@/$(VERSION)/g' $< >>$@
+	tail -n +2 $< | sed -e 's/@VERSION@/$(VERSION)/g' >>$@
 	chmod a+rx $@
 
 bin/setup.py: bin/setup.py.in bob/version.py

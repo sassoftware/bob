@@ -1,10 +1,17 @@
+#!/usr/bin/python
 #
 # Copyright (c) 2010 rPath, Inc.
 #
 # All rights reserved.
 #
 
-import sys
+import os, sys
+
+# this lets us run bin/bob from a checkout
+basePath = os.path.join(os.path.dirname(sys.argv[0]), '..')
+if os.path.exists(os.path.join(basePath, 'bob', '__init__.py')):
+        sys.path.insert(0, basePath)
+
 from pkg_resources import require
 require("bob==@VERSION@")
 
