@@ -1,5 +1,7 @@
-.*\.(pyc|pyo|o|so|orig|rej)$
-(^|/)\..*\.swp$
+\.(py[co]|sw[po]|o|so|orig|rej|egg-info)$
 ^.(pydev)?project$
 ^[^/]+\.(bob|ccs)$
 ^bob/version.py$
+^bin/setup.py$
+^bin/bob$
+^build/

@@ -1,0 +1,12 @@
+#
+# Copyright (c) 2010 rPath, Inc.
+#
+# All rights reserved.
+#
+
+import sys
+from pkg_resources import require
+require("bob==@VERSION@")
+
+from bob import main
+sys.exit(main.main(sys.argv[1:]))

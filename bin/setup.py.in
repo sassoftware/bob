@@ -1,0 +1,7 @@
+#!/usr/bin/python
+from setuptools import setup
+setup(name='bob',
+      version='@VERSION@',
+      platforms='any',
+      packages=['bob'],
+)

@@ -11,35 +11,44 @@
 # or fitness for a particular purpose. See the Common Public License for
 # full details.
 #
-#
-prefix = /usr
-export lib = $(shell uname -m | sed -r '/x86_64|ppc64|s390x|sparc64/{s/.*/lib64/;q};s/.*/lib/')
-libdir = $(prefix)/$(lib)
-bindir = $(prefix)/bin
 
-export DESTDIR=
+MAJOR=4.0
+VERSION=4.0.0
+
+
 PYVER=$(shell python -c 'import sys; print(sys.version[0:3])')
 PYTHON = /usr/bin/python${PYVER}
-PYCFLAGS=-c 'import compileall, sys;[compileall.compile_dir(x, ddir=x.replace("$(DESTDIR)", ""), quiet=1) for x in sys.argv[1:]]'
-VERSION=4.0
 
+DESTDIR=/
+prefix = /usr
+lib = $(shell uname -m | sed -r '/x86_64|ppc64|s390x|sparc64/{s/.*/lib64/;q};s/.*/lib/')
+libdir = $(prefix)/$(lib)
+bindir = $(prefix)/bin
 sitepkg = $(libdir)/python$(PYVER)/site-packages
-bobdir = $(sitepkg)/bob
+eggdir = $(sitepkg)/bob-$(VERSION)-py$(PYVER).egg
 
-generated_files = bob/version.py
+generated_files = bob/version.py bin/setup.py bin/bob
 
-.PHONY: $(generated_files)
+.PHONY: bob/version.py all install clean
 
 all: $(generated_files)
 
 install: $(generated_files)
-	mkdir -p "$(DESTDIR)$(bobdir)"
-	cp -a bob/*.py "$(DESTDIR)$(bobdir)/"
-	$(PYTHON) $(PYCFLAGS) "$(DESTDIR)$(bobdir)"
-	install -D -m755 bin/bob $(DESTDIR)$(bindir)/bob
+	# This should be roughly equivalent to bdist_egg && easy_install -m,
+	# except that it uses DESTDIR
+	rm -rf $(DESTDIR)$(eggdir)
+	$(PYTHON) bin/setup.py install --force --quiet \
+		--root "$(DESTDIR)" \
+		--single-version-externally-managed \
+		--install-purelib "$(eggdir)" \
+		--install-platlib "$(eggdir)" \
+		--install-data "$(eggdir)"
+	mv $(DESTDIR)$(eggdir)/*.egg-info $(DESTDIR)$(eggdir)/EGG-INFO
+	install -D -m0755 bin/bob $(DESTDIR)$(bindir)/bob-$(MAJOR)
 
 clean:
-	rm -f $(generated_files) bob/*.py[co]
+	@rm -f $(generated_files) bob/*.py[co]
+	@rm -rf build *.egg-info
 
 
 bob/version.py:
@@ -52,3 +61,11 @@ bob/version.py:
 		rev= ; \
 	fi ; \
 	echo "revision = '$$rev'" >>bob/version.py
+
+bin/bob: bin/bob.in
+	echo "#!$(PYTHON)" >$@
+	sed -e 's/@VERSION@/$(VERSION)/g' $< >>$@
+	chmod a+rx $@
+
+bin/setup.py: bin/setup.py.in bob/version.py
+	sed -e 's/@VERSION@/$(VERSION)/g' $< >$@
