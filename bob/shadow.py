@@ -127,11 +127,11 @@ class ShadowBatch(object):
                 (oldVersion, deps.Flavor()), True))
             oldVersions.append((package.getName(), oldVersion, deps.Flavor()))
 
-        oldChangeSet = self.helper.createChangeSet(toGet)
+        self.oldChangeSet = self.helper.createChangeSet(toGet)
         for package, oldVersion in zip(self.packages, oldVersions):
             if oldVersion:
                 self.oldTroves.append(
-                        oldChangeSet.getNewTroveVersion(*oldVersion))
+                        self.oldChangeSet.getNewTroveVersion(*oldVersion))
             else:
                 self.oldTroves.append(None)
 
