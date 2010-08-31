@@ -243,21 +243,11 @@ class TestSuite(object):
             duration = float(attrs['time'].value)
 
             # Get the actual result status
-            message = None
+            message = grabXMLData(node)
             if node.getElementsByTagName('error'):
                 status = TEST_ERROR
-                try:
-                    message = node.childNodes[1].childNodes[1].data
-                except IndexError, e:
-                    # flex style junit
-                    message = node.childNodes[1].childNodes[0].data
             elif node.getElementsByTagName('failure'):
                 status = TEST_FAIL
-                try:
-                    message = node.childNodes[1].childNodes[1].data
-                except IndexError, e:
-                    # flex style junit
-                    message = node.childNodes[1].childNodes[0].data
             else:
                 status = TEST_OK
 
@@ -371,13 +361,28 @@ def processTroveTests(test_suite, cover_data, name, version, flavor,
     # Coverage
     for cover_fobj in cover_fobjs:
         coverage.load(cover_data, cover_fobj)
-        
-#def testLoadJunit():
-#    ts = TestSuite()
-#    fileobj = open("/tmp/junit.xml", 'r')
-    #fileobj = open("/tmp/junit-old.xml", 'r')
-#    ts.load_junit(fileobj, HashableDict(x86="foo"))
-    
-#if __name__ == '__main__':
-#    import sys
-#    sys.exit(testLoadJunit())
+
+
+def grabXMLData(node):
+    """Collect CDATA from a XML node and all its descendants."""
+    nodes = [node]
+    out = []
+    while nodes:
+        node = nodes.pop(0)
+        for child in node.childNodes:
+            nodes.append(child)
+        if hasattr(node, 'data') and node.data.strip() != '':
+            out.append(node.data)
+    return u''.join(out)
+
+
+def testLoadJunit():
+    import sys
+    inpath, outpath = sys.argv[1:]
+    ts = TestSuite()
+    ts.load_junit(open(inpath), HashableDict())
+    ts.write_junit(open(outpath, 'w'))
+
+
+if __name__ == '__main__':
+    testLoadJunit()
