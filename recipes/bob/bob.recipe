@@ -16,7 +16,7 @@ class Bob(BuildPackageRecipe):
         ]
 
     def setup(r):
-        r.macros.major = '.'.join(r.version.split('.')[:2])
+        r.macros.major = '.'.join(r.version.replace('_', '.').split('.')[:2])
         env = 'VERSION=%(version)s MAJOR=%(major)s'
         r.addMercurialSnapshot()
         r.Make(env)
