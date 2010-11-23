@@ -55,8 +55,12 @@ def clone(hgui, uri, cacheDir):
         repo = hg.repository(hgui, dirPath)
     else:
         repo = hg.repository(hgui, dirPath, create=True)
+    log.debug("Pre-clone: repo %s has heads: %s", dirPath,
+            ' '.join(sorted(short(x) for x in repo.heads())))
     remote = hg.repository(hgui, uri)
     repo.pull(remote, force=True)
+    log.debug("Post-clone: repo %s has heads: %s", dirPath,
+            ' '.join(sorted(short(x) for x in repo.heads())))
     return repo
 
 
