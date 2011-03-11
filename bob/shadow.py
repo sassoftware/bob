@@ -1,7 +1,5 @@
 #
-# Copyright (c) 2008-2009 rPath, Inc.
-#
-# All rights reserved.
+# Copyright (c) 2011 rPath, Inc.
 #
 
 '''
@@ -25,6 +23,7 @@ from conary.deps import deps
 from conary.files import FileFromFilesystem, ThawFile
 from conary.lib.util import mkdirChain
 from conary.repository import filecontents
+from conary.repository import trovesource
 from conary.repository.changeset import ChangedFileTypes, ChangeSet
 from conary.trove import Trove
 from conary.versions import Revision
@@ -261,9 +260,12 @@ class ShadowBatch(object):
 
         # Get *all* troves with the right version so that we can find
         # versions that are latest on the correct branch but have
-        # been occluded by a newer version on the wrong branch.
+        # been occluded by a newer version on the wrong branch. Also include
+        # removed troves so that we don't collide with them when creating
+        # versions.
         results = self.helper.getRepos().findTroves(None, oldSpecs,
-            allowMissing=True, getLeaves=False)
+            allowMissing=True, getLeaves=False,
+            troveTypes=trovesource.TROVE_QUERY_ALL)
 
         toGet = []
         oldVersions = []
