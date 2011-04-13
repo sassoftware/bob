@@ -85,6 +85,7 @@ class BobMain(object):
                 raise RuntimeError("Target %s requires a sourceTree setting" %
                         (sourceName,))
             repo, subpath = targetConfig.sourceTree.split(None, 1)
+            subpath %= self._macros
             scm, uri = self._scm[repo]
             cacheDir = os.path.join(self._helper.cfg.lookaside, packageName)
             recipeFiles = hg.getRecipe(uri, scm.revision, subpath, cacheDir)
