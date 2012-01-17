@@ -1,7 +1,5 @@
 #
-# Copyright (c) 2008-2009 rPath, Inc.
-#
-# All rights reserved.
+# Copyright (c) rPath, Inc.
 #
 
 '''
@@ -13,10 +11,9 @@ import subprocess
 import signal
 import time
 
-import conary.conaryclient
-import rmake.cmdline.helper
-import rmake.cmdline.monitor
-import rmake.server.client
+from conary import conaryclient
+from rmake.cmdline import helper
+from rmake.cmdline import monitor
 from conary.lib.digestlib import md5
 
 log = logging.getLogger('bob.util')
@@ -63,7 +60,7 @@ class ClientHelper(object):
     def getClient(self):
         '''Get a ConaryClient'''
         if not self._conaryClient:
-            self._conaryClient = conary.conaryclient.ConaryClient(self.cfg)
+            self._conaryClient = conaryclient.ConaryClient(self.cfg)
         return self._conaryClient
 
     def getRepos(self):
@@ -73,7 +70,7 @@ class ClientHelper(object):
     def getrMakeHelper(self):
         '''Get a rMakeHelper'''
         if not self._rmakeHelper:
-            self._rmakeHelper = rmake.cmdline.helper.rMakeHelper(
+            self._rmakeHelper = helper.rMakeHelper(
                 buildConfig=self.cfg)
         return self._rmakeHelper
 
@@ -155,7 +152,7 @@ class HashableDict(dict):
         return hash(tuple(sorted(self.items())))
 
 
-class StatusOnlyDisplay(rmake.cmdline.monitor.JobLogDisplay):
+class StatusOnlyDisplay(monitor.JobLogDisplay):
     '''
     Display only job and trove status. No log output.
     '''
@@ -195,22 +192,6 @@ def timeIt(func):
     wrapper.__name__ = func.__name__ # stupid -- pylint: disable-msg=W0621
     wrapper.__wrapped_func__ = func
     return wrapper
-
-
-def findFile(troveCs, wantPath):
-    '''
-    Locate a path I{wantPath} in a trove changeset I{troveCs}.
-    Return I{(pathId, path, fileId, fileVer}) or raise I{RuntimeError}
-    if the path was not found.
-    '''
-
-    for pathId, path, fileId, fileVer in troveCs.getNewFileList():
-        if path == wantPath:
-            return pathId, path, fileId, fileVer
-
-    raise RuntimeError('File "%s" not found in trove %s=%s[%s]',
-        wantPath, troveCs.getName(), troveCs.getNewVersion(),
-        troveCs.getNewFlavor())
 
 
 def makeContainer(name, slots):

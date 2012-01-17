@@ -1,7 +1,5 @@
 #
-# Copyright (c) 2008 rPath, Inc.
-#
-# All rights reserved.
+# Copyright (c) rPath, Inc.
 #
 
 '''

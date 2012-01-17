@@ -1,7 +1,5 @@
 #
-# Copyright (c) 2010 rPath, Inc.
-#
-# All rights reserved.
+# Copyright (c) rPath, Inc.
 #
 
 '''
@@ -31,7 +29,7 @@ from rmake import compat
 
 from bob import macro
 from bob.mangle import mangle
-from bob.util import checkBZ2, findFile
+from bob.util import checkBZ2
 
 log = logging.getLogger('bob.shadow')
 
@@ -66,7 +64,6 @@ class ShadowBatch(object):
 
     def _makeRecipes(self):
         """Take pristine upstream sources, mangle them, and load the result."""
-        fileJob = []
         for package in self.packages:
             recipe = package.getRecipe()
             finalRecipe = mangle(package, recipe)

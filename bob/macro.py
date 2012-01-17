@@ -1,7 +1,5 @@
 #
-# Copyright (c) 2008 rPath, Inc.
-#
-# All rights reserved.
+# Copyright (c) rPath, Inc.
 #
 
 '''
@@ -9,7 +7,6 @@ Mechanism for expanding macros from a trove context.
 '''
 
 import logging
-import time
 
 from conary.build.macros import Macros
 from conary.conaryclient.cmdline import parseTroveSpec

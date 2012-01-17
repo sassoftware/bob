@@ -1,7 +1,5 @@
 #
-# Copyright (c) 2010 rPath, Inc.
-#
-# All rights reserved.
+# Copyright (c) rPath, Inc.
 #
 
 import os
@@ -11,7 +9,6 @@ from conary.conarycfg import CfgFlavor, CfgLabel
 from conary.lib import cfg
 from conary.lib.cfgtypes import CfgList, CfgString, CfgDict
 from conary.lib.cfgtypes import CfgQuotedLineList, CfgBool, ParseError
-from conary.versions import Label
 
 from bob.util import SCMRepository
 
