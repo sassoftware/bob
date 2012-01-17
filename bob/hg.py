@@ -78,17 +78,40 @@ def getRecipe(uri, rev, subpath, cacheDir):
     repo = hg.repository(hgui, uri)
     if not hg.islocal(repo):
         repo = updateCache(hgui, uri, repo, cacheDir)
+    cctx = repo.changectx(rev)
 
     # Pull out and return the recipe file contents.
     subpath = subpath.strip('/').split('/')
     splen = len(subpath)
 
+    # Pre-solve directory symlinks
+    changed = True
+    while changed:
+        changed = False
+        for n in range(len(subpath), 0, -1):
+            filepath = '/'.join(subpath[:n])
+            if filepath not in cctx:
+                continue
+            fctx = cctx.filectx(filepath)
+            if 'l' in fctx.flags():
+                newpath = os.path.join(os.path.dirname(filepath), fctx.data())
+                newpath = os.path.normpath(newpath)
+                subpath = newpath.strip('/').split('/')
+                splen = len(subpath)
+                changed = True
+            break
+
+
     files = {}
-    cctx = repo.changectx(rev)
     for filepath in cctx:
         name = filepath.split('/')
         if name[:splen] == subpath:
             fctx = cctx.filectx(filepath)
+            while 'l' in fctx.flags():
+                # Resolve symlinks
+                newpath = os.path.join(os.path.dirname(filepath), fctx.data())
+                newpath = os.path.normpath(newpath)
+                fctx = cctx.filectx(newpath)
             newname = '/'.join(name[splen:])
             files[newname] = fctx.data()
 
