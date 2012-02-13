@@ -112,7 +112,11 @@ class BobMain(object):
 
         # These options translate directly from the plan to rMake
         # or conary
-        for x in ('resolveTrovesOnly', 'shortenGroupFlavors'):
+        for x in (
+                'resolveTrovesOnly',
+                'rpmRequirements',
+                'shortenGroupFlavors',
+                ):
             cfg[x] = self._cfg[x]
 
         # And these are a little more indirect

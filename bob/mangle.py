@@ -92,3 +92,32 @@ def mSource(package, recipe):
     repos, uri = scmData[name]
     return RE_SOURCE.sub(r'\1\2.addMercurialSnapshot(%r, tag=%r)'
         % (str(uri), str(repos.revision)), recipe, count=1)
+
+
+@_register
+@_require_target_attribute('classVar')
+def mClassVar(package, recipe):
+    '''
+    Change class variables in the recipe
+    '''
+    # Find size of first indent
+    for line in recipe.splitlines():
+        stripped = line.lstrip()
+        if not stripped or stripped.startswith('#') or stripped == line:
+            continue
+        if stripped.replace('\t', ' ').replace(' ', '').startswith('name='):
+            indent = len(line) - len(stripped)
+            indent = line[:indent]
+            break
+    else:
+        raise RuntimeError("This doesn't look like a recipe")
+
+    replacements = package.getTargetConfig().classVar
+    for name, value in sorted(replacements.iteritems()):
+        pattern = re.compile(r'^%s%s\s*=\s*.*$' % (indent, name), flags=re.M)
+        replacement = '%s%s = %s' % (indent, name, value)
+        if not pattern.search(recipe):
+            raise RuntimeError("Unable to mangle class variable %r to %r" %
+                    (name, value))
+        recipe = pattern.sub(replacement, recipe)
+    return recipe

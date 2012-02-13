@@ -9,6 +9,7 @@ from conary.conarycfg import CfgFlavor, CfgLabel
 from conary.lib import cfg
 from conary.lib.cfgtypes import CfgList, CfgString, CfgDict
 from conary.lib.cfgtypes import CfgQuotedLineList, CfgBool, ParseError
+from rmake.build.buildcfg import CfgDependency
 
 from bob.util import SCMRepository
 
@@ -25,6 +26,7 @@ class BobTargetSection(cfg.ConfigSection):
 
     hg                      = CfgString
     after                   = CfgList(CfgString)
+    classVar                = CfgDict(CfgString)
     flavor_mask             = CfgFlavor
     flavor_set              = CfgString
     flavor                  = CfgList(CfgString)
@@ -57,6 +59,7 @@ class BobConfig(cfg.SectionedConfigFile):
     target                  = CfgList(CfgString)
     showBuildLogs           = (CfgBool, False)
     defaultBuildReqs        = CfgList(CfgString)
+    rpmRequirements         = CfgList(CfgDependency)
 
     # environment
     scmMap                  = CfgList(CfgString)
