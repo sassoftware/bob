@@ -135,7 +135,7 @@ class Batch(object):
         # dep ordering. This speeds up builds of core packages like Conary,
         # because otherwise rmake would wait for one flavor to build before
         # starting the other flavor due to dep confusion.
-        cfg.isolateTroves = len(set(x[0] for x in self._troves))
+        cfg.isolateTroves = len(set(x[0] for x in self._troves)) == 1
         job = self._helper.getrMakeHelper().createBuildJob(list(self._troves),
                 buildConfig=cfg)
         jobId = self._helper.getrMakeClient().buildJob(job)
