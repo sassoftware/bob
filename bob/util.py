@@ -265,6 +265,20 @@ def reportCommitMap(commitMap):
             print '  %s=%s[%s]' % builtTup
 
 
+def insertResolveTroves(cfg, commitMap):
+    """
+    Insert newly committed packages at the front of the resolveTrove stack.
+    """
+    packages = set()
+    for jobId, sources in commitMap.iteritems():
+        for sourceTup, builtTups in sources.iteritems():
+            for builtTup in builtTups:
+                packages.add(builtTup)
+    packages = sorted(packages)
+    cfg.resolveTroves.insert(0, [(n, str(v), f) for (n, v, f) in packages])
+    cfg.resolveTroveTups.insert(0, packages)
+
+
 class SCMRepository(Container):
     """
     Pointer to a SCM repository (e.g. Hg) by host and path.

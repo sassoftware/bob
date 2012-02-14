@@ -19,6 +19,7 @@ from bob import hg
 from bob import flavors
 from bob import recurse
 from bob import shadow
+from bob import util
 from bob import version
 from bob.errors import JobFailedError, TestFailureError
 from bob.macro import substILP, substResolveTroves, substStringList
@@ -211,7 +212,7 @@ class BobMain(object):
         commitMap = {}
         for batch in recurse.getBatchFromPackages(self._helper, targetPackages):
             try:
-                commitMap.update(batch.run(self))
+                newTroves = batch.run(self)
             except JobFailedError, e:
                 print 'Job %d failed:' % e.jobId
                 print e.why
@@ -228,6 +229,8 @@ class BobMain(object):
             else:
                 self._testSuite.merge(batch.getTestSuite())
                 coverage.merge(self._coverageData, batch.getCoverageData())
+                util.insertResolveTroves(self._helper.cfg, newTroves)
+                commitMap.update(newTroves)
 
         # Output test and coverage results
         self._writeArtifacts()
