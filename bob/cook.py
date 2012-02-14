@@ -130,8 +130,14 @@ class Batch(object):
         log.info('Creating build job: %s', ' '.join(troveNames))
 
         # Create rMake job
+        cfg = self._helper.cfg
+        # If there's only one unique package being built, tell rmake not to do
+        # dep ordering. This speeds up builds of core packages like Conary,
+        # because otherwise rmake would wait for one flavor to build before
+        # starting the other flavor due to dep confusion.
+        cfg.isolateTroves = len(set(x[0] for x in self._troves))
         job = self._helper.getrMakeHelper().createBuildJob(list(self._troves),
-                buildConfig=self._helper.cfg)
+                buildConfig=cfg)
         jobId = self._helper.getrMakeClient().buildJob(job)
         log.info('Job %d started with these sources:', jobId)
         for trove in self._bobTroves:
