@@ -75,7 +75,7 @@ def mVersion(package, recipe):
 
 
 RE_SOURCE = re.compile(
-    r'''^(\s+)(\S+)\.add(Archive|MercurialSnapshot)\s*\(.*?\).*?$''', re.M | re.S)
+    r'''^(\s+)([a-zA-Z0-9_]+)\.add(Archive|MercurialSnapshot)\s*\(.*?\).*?$''', re.M | re.S)
 @_register
 @_require_target_attribute('hg')
 def mSource(package, recipe):
