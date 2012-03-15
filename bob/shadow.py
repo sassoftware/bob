@@ -6,6 +6,7 @@
 Tools for manipulating recipes and source troves.
 '''
 
+import hashlib
 import logging
 import os
 import shutil
@@ -142,7 +143,7 @@ class ShadowBatch(object):
                 # Always recycle pathId if available.
                 pathId, _, oldFileId, oldFileVersion = oldFiles[path]
             else:
-                pathId = os.urandom(16)
+                pathId = hashlib.md5(path).digest()
                 oldFileId = oldFileVersion = None
 
             fileHelper = filetypes.RegularFile(contents=contents,
@@ -210,7 +211,7 @@ class ShadowBatch(object):
                         if delete:
                             deleteDirs.add(delete)
 
-                        autoPathId = os.urandom(16)
+                        autoPathId = hashlib.md5(autoPath).digest()
                         autoObj = FileFromFilesystem(snapshot, autoPathId)
                         autoObj.flags.isAutoSource(set=True)
                         autoObj.flags.isSource(set=True)
