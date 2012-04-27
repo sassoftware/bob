@@ -255,8 +255,7 @@ class ShadowBatch(object):
             log.debug('Created %s=%s', newTrove.getName(), newVersion)
 
         if doCommit:
-            if compat.ConaryVersion().signAfterPromote():
-                cook.signAbsoluteChangeset(changeSet, None)
+            cook.signAbsoluteChangesetByConfig(changeSet, self.helper.cfg)
             self.helper.getRepos().commitChangeSet(changeSet)
 
         for path in deleteDirs:
