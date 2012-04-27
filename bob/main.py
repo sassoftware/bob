@@ -4,6 +4,7 @@
 
 import copy
 import logging
+import optparse
 import os
 import shutil
 import sys
@@ -307,13 +308,33 @@ def mainFromPlan(plan):
 def main(args):
     banner()
 
-    try:
-        plan = args[0]
-    except IndexError:
-        print >>sys.stderr, 'Usage: %s <plan file or URI>' % sys.argv[0]
-        return 1
+    parser = optparse.OptionParser(
+            usage='Usage: %prog <plan file or URI> [options]')
+    parser.add_option('--set-tag', action='append',
+            help='tree=revision')
+    parser.add_option('--set-version', action='append',
+            help='package=version')
+    options, args = parser.parse_args(args)
 
-    plan = config.openPlan(plan)
+    if not args:
+        parser.error('A plan file or URI is required')
+    planFile = args[0]
+    plan = config.openPlan(planFile)
+
+    for val in (options.set_tag or ()):
+        name, tag = val.split('=', 1)
+        uri = plan.hg.get(name)
+        if not uri:
+            raise KeyError("hg %r is not in the plan file" % (name,))
+        if ' ' in uri:
+            uri = uri.split(' ')[0]
+        plan.hg[name] = ' '.join((uri, tag))
+
+    for val in (options.set_version or ()):
+        name, version = val.split('=', 1)
+        section = plan.setSection('target:' + name)
+        section.version = version
+
     return _main(plan)
 
 
