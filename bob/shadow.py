@@ -23,10 +23,10 @@ from conary.deps import deps
 from conary.files import FileFromFilesystem, ThawFile
 from conary.lib.util import mkdirChain
 from conary.repository import filecontents
+from conary.repository import trovesource
 from conary.repository.changeset import ChangedFileTypes, ChangeSet
 from conary.trove import Trove
 from conary.versions import Branch, Revision
-from rmake import compat
 
 from bob import macro
 from bob.mangle import mangle
@@ -102,7 +102,8 @@ class ShadowBatch(object):
         # versions that are latest on the correct branch but have
         # been occluded by a newer version on the wrong branch.
         results = self.helper.getRepos().findTroves(None, oldSpecs,
-            allowMissing=True, getLeaves=False)
+            allowMissing=True, getLeaves=False,
+            troveTypes=trovesource.TROVE_QUERY_ALL)
 
         toGet = []
         oldVersions = []
