@@ -5,10 +5,11 @@
 import os
 import time
 from conary.build.macros import Macros
-from conary.conarycfg import CfgFlavor, CfgLabel
+from conary.conarycfg import CfgFlavor
 from conary.lib import cfg
 from conary.lib.cfgtypes import CfgList, CfgString, CfgDict
 from conary.lib.cfgtypes import CfgQuotedLineList, CfgBool, ParseError
+from conary.versions import Label
 from rmake.build.buildcfg import CfgDependency
 
 from bob.util import SCMRepository
@@ -38,7 +39,7 @@ class BobTargetSection(cfg.ConfigSection):
 
 
 class BobConfig(cfg.SectionedConfigFile):
-    targetLabel             = CfgLabel
+    targetLabel             = CfgString             # macros supported
 
     # source
     sourceLabel             = CfgString             # DEPRECATED (ignored)
@@ -74,6 +75,7 @@ class BobConfig(cfg.SectionedConfigFile):
     def __init__(self):
         cfg.SectionedConfigFile.__init__(self)
         self.scmPins = {}
+        self._macros = None
 
     def read(self, path, **kwargs):
         if path.startswith('http://') or path.startswith('https://'):
@@ -97,10 +99,12 @@ class BobConfig(cfg.SectionedConfigFile):
         self.scmPins = scmPins
 
     def getMacros(self):
-        macros = Macros(self.macros)
-        macros['start_time'] = time.strftime('%Y%m%d_%H%M%S')
-        macros['target_label'] = self.targetLabel.asString()
-        return macros
+        if self._macros is None:
+            macros = Macros(self.macros)
+            macros['start_time'] = time.strftime('%Y%m%d_%H%M%S')
+            macros['target_label'] = self.targetLabel % macros
+            self._macros = macros
+        return self._macros
 
     def getRepositories(self, macros=None):
         """
@@ -156,6 +160,9 @@ class BobConfig(cfg.SectionedConfigFile):
                 return target + repos[len(base):]
         raise RuntimeError("Can't map SCM repository %r to URI "
                 "-- please add a scmMap" % repos)
+
+    def getTargetLabel(self):
+        return Label(self.targetLabel % self.getMacros())
 
 
 def openPlan(path, preload=DEFAULT_PATH):

@@ -91,7 +91,7 @@ class ShadowBatch(object):
         and are suitably sane.
         """
         oldSpecs = []
-        targetLabel = self.helper.plan.targetLabel
+        targetLabel = self.helper.plan.getTargetLabel()
         targetBranch = Branch([targetLabel])
         for package in self.packages:
             version = macro.expand(package.getBaseVersion(), package)
@@ -268,7 +268,7 @@ def _createVersion(package, helper, version):
     Pick a new version for package I{package} using I{version} as the
     new upstream version.
     '''
-    newBranch = Branch([helper.plan.targetLabel])
+    newBranch = Branch([helper.plan.getTargetLabel()])
     newRevision = Revision('%s-0' % version)
     newVersion = newBranch.createVersion(newRevision)
     newVersion.incrementSourceCount()
@@ -338,7 +338,7 @@ def _loadRecipe(helper, package, recipePath):
     if isPackageRecipe(recipeClass):
         lcache = RepositoryCache(helper.getRepos())
 
-        dummybranch = Branch([helper.plan.targetLabel])
+        dummybranch = Branch([helper.plan.getTargetLabel()])
         dummyrev = Revision('1-1')
         dummyver = dummybranch.createVersion(dummyrev)
         macros = {

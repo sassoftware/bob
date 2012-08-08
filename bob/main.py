@@ -122,7 +122,7 @@ class BobMain(object):
             cfg[x] = self._cfg[x]
 
         # And these are a little more indirect
-        cfg.buildLabel = self._cfg.targetLabel
+        cfg.buildLabel = self._cfg.getTargetLabel()
         cfg.cleanAfterCook = not self._cfg.noClean
         cfg.resolveTroves = substResolveTroves(self._cfg.resolveTroves,
             self._macros)
