@@ -1,5 +1,5 @@
 #
-# Copyright (c) 2010 rPath, Inc.
+# Copyright (c) rPath, Inc.
 #
 # This program is distributed under the terms of the Common Public License,
 # version 1.0. A copy of this license should have been distributed with this
@@ -13,7 +13,7 @@
 #
 
 MAJOR=4.0
-VERSION=4.0.0
+VERSION=4.0.1
 
 
 PYVER=$(shell python -c 'import sys; print(sys.version[0:3])')

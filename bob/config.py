@@ -66,7 +66,7 @@ class BobConfig(cfg.SectionedConfigFile):
     scmMap                  = CfgList(CfgString)
 
     # misc
-    commitMessage           = (CfgString, 'Automated clone by bob3')
+    commitMessage           = (CfgString, 'Automated clone by bob')
     skipMacros              = (CfgList(CfgString), ['version'])
 
     # custom handling of sections

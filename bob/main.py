@@ -10,6 +10,7 @@ import shutil
 import sys
 
 from conary.build.macros import MacroKeyError
+from conary.lib import util as cny_util
 from rmake import plugins
 from rmake.cmdline import buildcmd
 from rmake.build import buildcfg
@@ -183,7 +184,13 @@ class BobMain(object):
         '''
         print self._testSuite.describe()
 
-        os.makedirs('output/tests')
+        try:
+            os.makedirs('output/tests')
+        except OSError:
+            # The directory is deleted at the beginning of the build, so if two
+            # bobs are run in the same directory it might have been recreated
+            # already.
+            pass
         if self._testSuite.tests:
             self._testSuite.write_junit(open('output/tests/junit.xml', 'w'))
 
@@ -314,7 +321,25 @@ def main(args):
             help='tree=revision')
     parser.add_option('--set-version', action='append',
             help='package=version')
+    parser.add_option('--debug', action='store_true')
     options, args = parser.parse_args(args)
+
+    msg = """
+%(filename)s:%(lineno)s
+%(errtype)s: %(errmsg)s
+
+The complete related traceback has been saved as %(stackfile)s
+"""
+    cny_hook = cny_util.genExcepthook(
+            debug=options.debug,
+            prefix='bob-error-',
+            error=msg,
+            )
+    def excepthook(e_class, e_val, e_tb):
+        if not options.debug:
+            cny_util.formatTrace(e_class, e_val, e_tb, withLocals=False)
+        return cny_hook(e_class, e_val, e_tb)
+    sys.excepthook = excepthook
 
     if not args:
         parser.error('A plan file or URI is required')
