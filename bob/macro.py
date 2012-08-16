@@ -46,7 +46,7 @@ def substILP(ilp, macros):
     """
     Substitute C{macros} into the install label path C{ilp}.
     """
-    return [Label(x % macros) for x in ilp if x % macros ]
+    return [Label(x % macros) for x in ilp if x % macros]
 
 
 def substResolveTroves(resolveTroves, macros):
