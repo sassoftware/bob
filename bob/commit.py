@@ -95,7 +95,8 @@ def clone_job(helper, job):
 
         # Determine which branch this will be committed to
         source_branch = origin_branch = source_version.branch()
-        target_branch = origin_branch.createShadow(helper.plan.targetLabel)
+        target_branch = origin_branch.createShadow(
+                helper.plan.getTargetLabel())
 
         # Mark said branch for final promote
         branch_map[source_branch] = target_branch

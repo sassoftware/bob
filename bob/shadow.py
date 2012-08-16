@@ -252,7 +252,7 @@ class ShadowBatch(object):
         and are suitably sane.
         """
         oldSpecs = []
-        targetLabel = self.helper.plan.targetLabel
+        targetLabel = self.helper.plan.getTargetLabel()
         for job in self.jobs:
             version = macro.expand(job.package.getBaseVersion(), job.package)
             oldSpecs.append((job.package.getName(),
@@ -334,7 +334,7 @@ def _createVersion(package, helper, version):
     new upstream version.
     '''
 
-    targetLabel = helper.plan.targetLabel
+    targetLabel = helper.plan.getTargetLabel()
 
     sourceVersion = package.getUpstreamVersion()
     sourceBranch = sourceVersion.branch()
@@ -353,7 +353,7 @@ def _createVersion(package, helper, version):
     else:
         # Otherwise create one with a "modified upstream version."
         # ex. 1.2.3-0.1
-        newBranch = sourceBranch.createShadow(helper.plan.targetLabel)
+        newBranch = sourceBranch.createShadow(helper.plan.getTargetLabel())
         newRevision = Revision('%s-0' % version)
         newVersion = newBranch.createVersion(newRevision)
     newVersion.incrementSourceCount()
