@@ -59,6 +59,7 @@ class ShadowBatch(object):
         if not self.packages:
             return
 
+        self._makeProddef()
         self._makeRecipes()
         self._fetchOldChangeSets()
         self._merge()
@@ -84,6 +85,23 @@ class ShadowBatch(object):
                 shutil.rmtree(tempDir)
 
             self.recipes.append((finalRecipe, recipeObj))
+
+    def _makeProddef(self):
+        pkg = self._getProddefPackage()
+        if not pkg:
+            return
+
+        fname = 'product-definition.xml'
+        proddef = pkg.recipeFiles.get(fname)
+        finalProddef = proddef % pkg.getMangleData().get('macros')
+        pkg.recipeFiles[fname] = finalProddef
+
+    def _getProddefPackage(self):
+        pkgs = [ x for x in self.packages
+            if x.name == 'product-definition:source' ]
+        if pkgs:
+            return pkgs[0]
+        return False
 
     def _fetchOldChangeSets(self):
         """
