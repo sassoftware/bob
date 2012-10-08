@@ -32,7 +32,10 @@ def get_tip(uri):
                 'using latest', uri)
 
         hg_ui = ui.ui()
-        repo = hg.repository(hg_ui, uri)
+        if hasattr(hg, 'peer'):
+            repo = hg.peer(hg_ui, {}, uri)
+        else:
+            repo = hg.repository(hg_ui, uri)
         tip = short(repo.heads()[0])
         log.debug('Selected for %s revision %s (from repo)', uri, tip)
         return tip
@@ -75,9 +78,18 @@ def getRecipe(uri, rev, subpath, cacheDir):
     """Get file contents for a subset of the given hg repository."""
     # Update the local repository cache.
     hgui = ui.ui()
-    repo = hg.repository(hgui, uri)
-    if not hg.islocal(repo):
-        repo = updateCache(hgui, uri, repo, cacheDir)
+    if hasattr(hg, 'peer'):
+        # hg >= 2.3
+        if hg.islocal(uri):
+            repo = hg.repository(hgui, uri)
+        else:
+            remote = hg.peer(hgui, {}, uri)
+            repo = updateCache(hgui, uri, remote, cacheDir)
+    else:
+        # hg < 2.3
+        repo = hg.repository(hgui, uri)
+        if not hg.islocal(repo):
+            repo = updateCache(hgui, uri, repo, cacheDir)
     cctx = repo.changectx(rev)
 
     # Pull out and return the recipe file contents.
