@@ -1,0 +1,21 @@
+#
+# Copyright (c) rPath, Inc.
+#
+
+class Bob(BuildPackageRecipe):
+    name = 'bob'
+    version = '4.0'
+
+    buildRequires = [
+        'python-devel',
+        'python-setuptools',
+        'rmake',
+        'mercurial',
+        ]
+
+    def setup(r):
+        r.macros.major = '.'.join(r.version.replace('_', '.').split('.')[:2])
+        env = 'VERSION=%(version)s MAJOR=%(major)s'
+        r.addMercurialSnapshot()
+        r.Make(env)
+        r.MakeInstall(env)
