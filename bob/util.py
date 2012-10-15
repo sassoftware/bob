@@ -252,9 +252,13 @@ def reportCommitMap(commitMap):
 
     print 'Committed:'
     sourceNVMap = {}
+    uniqueRevs = set()
     for jobId in sorted(commitMap):
         for sourceTup, builtTups in commitMap[jobId].iteritems():
             sourceNVMap.setdefault(sourceTup[0:2], []).extend(builtTups)
+            name = sourceTup[0].split(':')[0]
+            rev = builtTups[0][1].trailingRevision().asString()
+            uniqueRevs.add((name, rev))
 
     for sourceNV in sorted(sourceNVMap):
         print '%s=%s' % sourceNV
@@ -262,7 +266,9 @@ def reportCommitMap(commitMap):
         for builtTup in builtTups:
             if ':' in builtTup[0]:
                 continue
-            print '  %s=%s[%s]' % builtTup
+
+    print
+    print 'Revisions built:', ' '.join(('%s=%s' % x for x in sorted(uniqueRevs)))
 
 
 def insertResolveTroves(cfg, commitMap):
