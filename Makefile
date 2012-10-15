@@ -27,7 +27,7 @@ bindir = $(prefix)/bin
 sitepkg = $(libdir)/python$(PYVER)/site-packages
 eggdir = $(sitepkg)/bob-$(VERSION)-py$(PYVER).egg
 
-generated_files = bob/version.py bin/setup.py bin/bob
+generated_files = bob/version.py bin/setup.py bin/bob bin/bob-deps
 
 .PHONY: bob/version.py all install clean
 
@@ -63,7 +63,7 @@ bob/version.py:
 	fi ; \
 	echo "revision = '$$rev'" >>bob/version.py
 
-bin/bob: bin/bob.in
+bin/bob bin/bob-deps: %: %.in
 	echo "#!$(PYTHON)" >$@
 	tail -n +2 $< | sed -e 's/@VERSION@/$(VERSION)/g' >>$@
 	chmod a+rx $@

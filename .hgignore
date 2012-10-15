@@ -4,4 +4,5 @@
 ^bob/version.py$
 ^bin/setup.py$
 ^bin/bob$
+^bin/bob-deps$
 ^build/
