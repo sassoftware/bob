@@ -45,6 +45,7 @@ class BobConfig(cfg.SectionedConfigFile):
     # source
     sourceLabel             = CfgLabel
     macros                  = CfgDict(CfgString)
+    override                = CfgDict(CfgString)
     resolveTroves           = CfgList(CfgQuotedLineList(
                                         CfgString)) # macros supported
     resolveTrovesOnly       = (CfgBool, False)
@@ -104,6 +105,7 @@ class BobConfig(cfg.SectionedConfigFile):
     def getMacros(self):
         if self._macros is None:
             macros = Macros(self.macros)
+            macros.update(self.override)
             macros['start_time'] = time.strftime('%Y%m%d_%H%M%S')
             macros['target_label'] = self.targetLabel % macros
             self._macros = macros
