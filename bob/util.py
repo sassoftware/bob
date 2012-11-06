@@ -285,6 +285,7 @@ def reportCommitMap(commitMap):
         for builtTup in builtTups:
             if ':' in builtTup[0]:
                 continue
+            print '  %s=%s[%s]' % builtTup
 
     print
     print 'Revisions built:', ' '.join(('%s=%s' % x for x in sorted(uniqueRevs)))
