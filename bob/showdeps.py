@@ -21,6 +21,7 @@
 #
 
 
+import optparse
 import os
 import sys
 import traceback
@@ -42,9 +43,6 @@ def analyze_plan(provides, requires, root, relpath):
     for bucket in cfg.resolveTroves:
         for item in bucket:
             item %= cfg.getMacros()
-            if '/' in item:
-                # Pinned. Probably not a inter-bob require anyway.
-                continue
             requires.setdefault(item, set()).add(relpath)
 
 
@@ -65,32 +63,59 @@ def dedupe(requirers, edges):
 
 
 def main(args):
-    root = os.path.abspath(args[0])
+    parser = optparse.OptionParser(usage='%prog {--graph,--required-hosts} root')
+    parser.add_option('--graph', action='store_true')
+    parser.add_option('--required-hosts', action='store_true')
+    options, args = parser.parse_args(args)
+    if not args or not (options.graph or options.required_hosts):
+        parser.error('wrong arguments')
     provides = {}
     requires = {}
-    for dirpath, dirnames, filenames in os.walk(root):
-        reldir = dirpath[len(root)+1:]
-        for filename in filenames:
-            if filename.endswith('.bob'):
-                relpath = os.path.join(reldir, filename)
-                try:
-                    analyze_plan(provides, requires, root, relpath)
-                except:
-                    print 'Error parsing file %s:' % relpath
-                    traceback.print_exc()
-                    sys.exit(1)
+    for root in args:
+        root = os.path.abspath(root)
+        for dirpath, dirnames, filenames in os.walk(root):
+            reldir = dirpath[len(root)+1:]
+            for filename in filenames:
+                if filename.endswith('.bob'):
+                    relpath = os.path.join(reldir, filename)
+                    try:
+                        analyze_plan(provides, requires, root, relpath)
+                    except:
+                        print 'Error parsing file %s:' % relpath
+                        traceback.print_exc()
+                        sys.exit(1)
 
-    edges = {}
-    for item, providers in provides.iteritems():
-        requirers = requires.get(item, set())
-        if not requirers:
-            continue
-        for provider in providers:
-            edges[provider] = set(requirers)
+    if options.graph:
+        edges = {}
+        for item, providers in provides.iteritems():
+            requirers = requires.get(item, set())
+            if not requirers:
+                continue
+            for provider in providers:
+                edges[provider] = set(requirers)
 
-    edges_trimmed = {}
-    for provider, requirers in edges.iteritems():
-        requirers = dedupe(requirers, edges)
-        edges_trimmed[provider] = requirers
-    import pprint
-    pprint.pprint(edges_trimmed)
+        edges_trimmed = {}
+        for provider, requirers in edges.iteritems():
+            requirers = dedupe(requirers, edges)
+            edges_trimmed[provider] = requirers
+        import pprint
+        pprint.pprint(edges_trimmed)
+
+    if options.required_hosts:
+        mapping = {}
+        for item, requirers in requires.iteritems():
+            if item.count('=') != 1:
+                print "Doesn't look like a trovespec:", item
+                continue
+            name, version = item.split('=')
+            if version.count('@') != 1:
+                print "Doesn't look like a trovespec:", item
+                continue
+            host = version.split('@')[0]
+            if host.count('/') == 1 and host[0] == '/':
+                host = host[1:]
+            mapping.setdefault(host, {})[item] = requirers
+        for host, items in sorted(mapping.items()):
+            print host
+            for item, requirers in sorted(items.items()):
+                print ' ', item, '\t', sorted(requirers)[0]
