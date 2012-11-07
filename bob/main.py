@@ -252,7 +252,7 @@ class BobMain(object):
                 # some failed
                 self._writeArtifacts()
                 print 'Aborting due to failed tests'
-                return 4
+                return 0
             else:
                 self._testSuite.merge(batch.getTestSuite())
                 coverage.merge(self._coverageData, batch.getCoverageData())
