@@ -25,8 +25,6 @@ from conary.lib.cfgtypes import CfgQuotedLineList, CfgBool, ParseError
 from conary.versions import Label
 from rmake.build.buildcfg import CfgDependency
 
-from bob.util import SCMRepository
-
 
 DEFAULT_PATH = ['/etc/bobrc', '~/.bobrc']
 
@@ -38,7 +36,7 @@ class BobTargetSection(cfg.ConfigSection):
     flavor_set plain
     '''
 
-    hg                      = CfgString
+    scm                     = CfgString
     after                   = CfgList(CfgString)
     classVar                = CfgDict(CfgString)
     flavor_mask             = CfgFlavor
@@ -49,6 +47,11 @@ class BobTargetSection(cfg.ConfigSection):
     sourceTree              = CfgString
     serializeFlavors        = CfgBool
     noCommit                = CfgBool
+
+    def __init__(self, *args, **kwargs):
+        cfg.ConfigSection.__init__(self, *args, **kwargs)
+        self.addAlias('hg', 'scm')
+        self.addAlias('git', 'scm')
 
 
 class BobConfig(cfg.SectionedConfigFile):
@@ -62,7 +65,7 @@ class BobConfig(cfg.SectionedConfigFile):
                                         CfgString)) # macros supported
     resolveTrovesOnly       = (CfgBool, False)
     autoLoadRecipes         = (CfgList(CfgString), [])
-    hg                      = CfgDict(CfgString)    # macros supported
+    scm                     = CfgDict(CfgString)    # macros supported
 
     # build
     installLabelPath        = CfgQuotedLineList(
@@ -76,9 +79,6 @@ class BobConfig(cfg.SectionedConfigFile):
     defaultBuildReqs        = CfgList(CfgString)
     rpmRequirements         = CfgList(CfgDependency)
 
-    # environment
-    scmMap                  = CfgList(CfgString)
-
     # misc
     commitMessage           = (CfgString, 'Automated clone by bob')
     skipMacros              = (CfgList(CfgString), ['version'])
@@ -90,6 +90,7 @@ class BobConfig(cfg.SectionedConfigFile):
         cfg.SectionedConfigFile.__init__(self)
         self.scmPins = {}
         self._macros = None
+        self.addDirective('hg', '_hg')
 
     def read(self, path, **kwargs):
         if path.startswith('http://') or path.startswith('https://'):
@@ -137,7 +138,11 @@ class BobConfig(cfg.SectionedConfigFile):
             macros = self.getMacros()
 
         out = {}
-        for name, uri in self.hg.iteritems():
+        for name, value in self.scm.iteritems():
+            if ' ' not in value:
+                raise ValueError("Invalid scm directive %r -- must take the "
+                        "form 'scm <hg|git> <uri> [rev]" % (value,))
+            kind, uri = value.split(' ', 1)
             name %= macros
             if ' ' in uri:
                 uri, revision = uri.split(' ', 1)
@@ -146,38 +151,16 @@ class BobConfig(cfg.SectionedConfigFile):
             else:
                 uri %= macros
                 revision = None
-
-            repos = None
-            for scmMap in self.scmMap:
-                # A right proper repository handle
-                base, target = scmMap.split(' ', 1)
-                if uri.startswith(target):
-                    scmPath = base + uri[len(target):]
-                    repos = SCMRepository.fromString(scmPath)
-                    break
-            else:
-                # Dummy handle that will at least let us go back
-                # to the URI later
-                repos = SCMRepository(uri=uri)
-            repos.revision = revision
-            out[name] = repos
+            out[name] = (kind, uri, revision)
 
         return out
 
-    def getUriForScm(self, repos):
-        if isinstance(repos, SCMRepository) and repos.uri:
-            return repos.uri
-        if not isinstance(repos, basestring):
-            repos = repos.asString()
-        for scmMap in self.scmMap:
-            base, target = scmMap.split(' ', 1)
-            if repos.startswith(base):
-                return target + repos[len(base):]
-        raise RuntimeError("Can't map SCM repository %r to URI "
-                "-- please add a scmMap" % repos)
-
     def getTargetLabel(self):
         return Label(self.targetLabel % self.getMacros())
+
+    def _hg(self, value):
+        key, value = value.split(' ', 1)
+        self.configLine('scm %s hg %s' % (key, value))
 
 
 def openPlan(path, preload=DEFAULT_PATH):

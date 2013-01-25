@@ -88,23 +88,30 @@ def mVersion(package, recipe):
 
 
 RE_SOURCE = re.compile(
-    r'''^(\s+)([a-zA-Z0-9_]+)\.add(Archive|MercurialSnapshot)\s*\(.*?\).*?$''', re.M | re.S)
+    r'''^(\s+)([a-zA-Z0-9_]+)\.add(Archive|(Git|Mercurial|Cvs|Svn)Snapshot)'''
+    r'''\s*\(.*?\).*?$''', re.M | re.S)
 @_register
-@_require_target_attribute('hg')
+@_require_target_attribute('scm')
 def mSource(package, recipe):
     '''
     Modify addMercurialSnapshot calls to use the selected revision.
     '''
 
-    name = package.getTargetConfig().hg
+    name = package.getTargetConfig().scm
     scmData = package.getMangleData()['scm']
     if not scmData.has_key(name):
-        logging.warning('Trove %s references undefined Hg repository %s',
+        logging.warning('Trove %s references undefined SCM repository %s',
             package.getPackageName(), name)
 
-    repos, uri = scmData[name]
-    return RE_SOURCE.sub(r'\1\2.addMercurialSnapshot(%r, tag=%r)'
-        % (str(uri), str(repos.revision)), recipe, count=1)
+    kind, uri, rev = scmData[name]
+    if kind == 'hg':
+        action = 'addMercurialSnapshot'
+    elif kind == 'git':
+        action = 'addGitSnapshot'
+    else:
+        raise TypeError("Invalid SCM type %r" % (kind,))
+    return RE_SOURCE.sub(r'\1\2.%s(%r, tag=%r)'
+        % (action, str(uri), str(rev)), recipe, count=1)
 
 
 @_register

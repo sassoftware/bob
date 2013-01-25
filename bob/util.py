@@ -297,23 +297,3 @@ def insertResolveTroves(cfg, commitMap):
     packages = sorted(packages)
     cfg.resolveTroves.insert(0, [(n, str(v), f) for (n, v, f) in packages])
     cfg.resolveTroveTups.insert(0, packages)
-
-
-class SCMRepository(Container):
-    """
-    Pointer to a SCM repository (e.g. Hg) by host and path.
-    """
-    __slots__ = ['kind', 'host', 'path', 'revision', 'uri']
-
-    @classmethod
-    def fromString(cls, val):
-        if '::' not in val:
-            raise ValueError("Invalid repository %r" % (val,))
-        kind, location = val.split('::', 1)
-        host, path = location.strip().split(':', 1)
-        return cls(kind=kind.strip(), host=host, path=path)
-
-    def asString(self):
-        if None in (self.kind, self.host, self.path):
-            raise ValueError("Cannot stringify incomplete repository handle")
-        return '%s::%s:%s' % (self.kind, self.host, self.path)

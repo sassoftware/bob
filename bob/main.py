@@ -100,9 +100,13 @@ class BobMain(object):
                         (sourceName,))
             repo, subpath = targetConfig.sourceTree.split(None, 1)
             subpath %= self._macros
-            scm, uri = self._scm[repo]
+            kind, uri, rev = self._scm[repo]
             cacheDir = os.path.join(self._helper.cfg.lookaside, packageName)
-            recipeFiles = hg.getRecipe(uri, scm.revision, subpath, cacheDir)
+            if kind == 'hg':
+                recipeFiles = hg.getRecipe(uri, rev, subpath, cacheDir)
+            else:
+                raise TypeError("Invalid SCM type %r in target %r"
+                        % (kind, name))
 
             package = BobPackage(sourceName, targetConfig, recipeFiles)
             package.setMangleData(mangleData)
@@ -171,14 +175,13 @@ class BobMain(object):
         Obtain revisions of hg repositories
         '''
         self._scm = {}
-        for name, repos in self._cfg.getRepositories(self._macros
-                ).iteritems():
-            uri = self._cfg.getUriForScm(repos)
-            if not repos.revision:
-                repos.revision = hg.get_tip(uri)
-            self._scm[name] = (repos, uri)
-            log.info("For repository %s, using %s revision %s", name, uri,
-                    repos.revision)
+        for name, (kind, uri, rev) in self._cfg.getRepositories(
+                self._macros).iteritems():
+            if not rev:
+                assert kind == 'hg'
+                rev = hg.get_tip(uri)
+            self._scm[name] = (kind, uri, rev)
+            log.info("For repository %s, using %s revision %s", name, uri, rev)
 
     def _registerCommand(self, *args, **kwargs):
         'Fake rMake hook'
