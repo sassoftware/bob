@@ -188,7 +188,7 @@ class BobMain(object):
             tips = {}
             for line in open('tips'):
                 _uri, _tip = line.split(' ', 1)
-                tips[_uri] = _tip
+                tips[_uri] = _tip.strip()
         except IOError:
             tips = None
 
@@ -228,6 +228,8 @@ class BobMain(object):
                         'using latest', uri)
                 repo.revision = repo.getTip()
             repo.updateCache()
+            if len(repo.revision) == 40:
+                repo.revision = repo.revision[:12]
             self._scm[name] = repo
             log.info("For repository %s, using %s revision %s", name, uri,
                     repo.revision)

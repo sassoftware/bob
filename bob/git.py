@@ -47,7 +47,7 @@ class GitRepository(scm.ScmRepository):
             raise RuntimeError("git exited with status %s" % p.returncode)
         rev = stdout.split()[0]
         assert len(rev) == 40
-        return rev[:12]
+        return rev
 
     def updateCache(self):
         # Create the cache repo if needed.
