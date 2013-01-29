@@ -94,7 +94,7 @@ RE_SOURCE = re.compile(
 @_require_target_attribute('scm')
 def mSource(package, recipe):
     '''
-    Modify addMercurialSnapshot calls to use the selected revision.
+    Modify source action calls to use the selected revision.
     '''
 
     name = package.getTargetConfig().scm
@@ -102,16 +102,8 @@ def mSource(package, recipe):
     if not scmData.has_key(name):
         logging.warning('Trove %s references undefined SCM repository %s',
             package.getPackageName(), name)
-
-    kind, uri, rev = scmData[name]
-    if kind == 'hg':
-        action = 'addMercurialSnapshot'
-    elif kind == 'git':
-        action = 'addGitSnapshot'
-    else:
-        raise TypeError("Invalid SCM type %r" % (kind,))
-    return RE_SOURCE.sub(r'\1\2.%s(%r, tag=%r)'
-        % (action, str(uri), str(rev)), recipe, count=1)
+    repo = scmData[name]
+    return RE_SOURCE.sub(r'\1\2.' + repo.getAction(), recipe, count=1)
 
 
 @_register

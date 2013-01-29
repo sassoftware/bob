@@ -40,7 +40,7 @@ def expand(raw, package):
         if config.scm:
             name = config.scm
             if data['scm'].has_key(name):
-                kind, uri, rev = data['scm'][name]
+                rev = data['scm'][name].revision
                 macros['git'] = rev
                 macros['hg'] = rev
                 macros['rev'] = rev

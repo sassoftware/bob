@@ -30,6 +30,7 @@ from rmake.build import buildcfg
 
 from bob import config
 from bob import coverage
+from bob import git
 from bob import hg
 from bob import flavors
 from bob import recurse
@@ -46,6 +47,9 @@ log = logging.getLogger('bob.main')
 
 
 class BobMain(object):
+    bobCache = '__bob__'
+
+
     def __init__(self, pluginmgr):
         pluginmgr.callClientHook('client_preInit', self, sys.argv)
 
@@ -98,15 +102,21 @@ class BobMain(object):
             if not targetConfig.sourceTree:
                 raise RuntimeError("Target %s requires a sourceTree setting" %
                         (sourceName,))
-            repo, subpath = targetConfig.sourceTree.split(None, 1)
+            repoName, subpath = targetConfig.sourceTree.split(None, 1)
+            repo = self._scm[repoName]
             subpath %= self._macros
-            kind, uri, rev = self._scm[repo]
+            # Make a symlink for the usual conary cache location, so the recipe
+            # loader can use it.
             cacheDir = os.path.join(self._helper.cfg.lookaside, packageName)
-            if kind == 'hg':
-                recipeFiles = hg.getRecipe(uri, rev, subpath, cacheDir)
-            else:
-                raise TypeError("Invalid SCM type %r in target %r"
-                        % (kind, name))
+            if not os.path.islink(cacheDir):
+                toDelete = None
+                if os.path.exists(cacheDir):
+                    toDelete = cacheDir + '.tmp.%d' % os.getpid()
+                    os.rename(cacheDir, toDelete)
+                os.symlink(self.bobCache, cacheDir)
+                if toDelete:
+                    cny_util.rmtree(toDelete)
+            recipeFiles = repo.getRecipe(subpath)
 
             package = BobPackage(sourceName, targetConfig, recipeFiles)
             package.setMangleData(mangleData)
@@ -174,14 +184,53 @@ class BobMain(object):
         '''
         Obtain revisions of hg repositories
         '''
+        try:
+            tips = {}
+            for line in open('tips'):
+                _uri, _tip = line.split(' ', 1)
+                tips[_uri] = _tip
+        except IOError:
+            tips = None
+
+        cacheDir = os.path.join(self._helper.cfg.lookaside, self.bobCache)
         self._scm = {}
         for name, (kind, uri, rev) in self._cfg.getRepositories(
                 self._macros).iteritems():
-            if not rev:
-                assert kind == 'hg'
-                rev = hg.get_tip(uri)
-            self._scm[name] = (kind, uri, rev)
-            log.info("For repository %s, using %s revision %s", name, uri, rev)
+            path = None
+            if kind == 'hg':
+                repo = hg.HgRepository(cacheDir, uri)
+            elif kind == 'git':
+                if '?' in uri:
+                    path, branch = uri.split('?', 1)
+                else:
+                    path, branch = uri, 'master'
+                repo = git.GitRepository(cacheDir, path, branch)
+            else:
+                raise TypeError("Invalid SCM type %r in target %r"
+                        % (kind, name))
+            if rev:
+                repo.revision = rev
+            elif tips is not None:
+                rev = tips.get(uri)
+                if path and not rev:
+                    # Try the URI without the branch suffix
+                    uri = path
+                    rev = tips.get(uri)
+                if rev:
+                    log.debug('Selected for %s revision %s (from tips)', uri,
+                            rev)
+                    repo.revision = rev
+                else:
+                    raise RuntimeError('tips file exists, but does not '
+                            'contain repository %s' % uri)
+            else:
+                log.warning('No explicit revision given for repository %s, '
+                        'using latest', uri)
+                repo.revision = repo.getTip()
+            repo.updateCache()
+            self._scm[name] = repo
+            log.info("For repository %s, using %s revision %s", name, uri,
+                    repo.revision)
 
     def _registerCommand(self, *args, **kwargs):
         'Fake rMake hook'

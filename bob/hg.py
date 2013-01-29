@@ -21,123 +21,44 @@ Helper functions for dealing with mercurial (hg) repositories.
 
 import logging
 import os
+import subprocess
 
 from mercurial import hg, ui
 from mercurial.node import short
 
+from bob import scm
+
 log = logging.getLogger('bob.hg')
 
 
-def get_tip(uri):
-    '''
-    Fetch the tip of a given repository URI, using the tips file if present.
-    '''
+class HgRepository(scm.ScmRepository):
 
-    try:
-        for line in open('tips'):
-            _uri, _tip = line.split(' ', 1)
-            if _uri == uri:
-                log.debug('Selected for %s revision %s (from tips)',
-                    uri, _tip)
-                return _tip[:12]
-    except IOError:
-        log.warning('No explicit revision given for repository %s, '
-                'using latest', uri)
+    def __init__(self, cacheDir, uri):
+        self.uri = uri
 
+        dirPath = self.uri.split('//', 1)[-1]
+        dirPath = dirPath.replace('/', '_')
+        self.repoDir = os.path.join(cacheDir, dirPath, 'hg')
+
+    def getTip(self):
         hg_ui = ui.ui()
         if hasattr(hg, 'peer'):
-            repo = hg.peer(hg_ui, {}, uri)
+            repo = hg.peer(hg_ui, {}, self.uri)
         else:
-            repo = hg.repository(hg_ui, uri)
-        tip = short(repo.heads()[0])
-        log.debug('Selected for %s revision %s (from repo)', uri, tip)
-        return tip
-    else:
-        raise RuntimeError('tips file exists, but does not contain '
-            'repository %s' % uri)
+            repo = hg.repository(hg_ui, self.uri)
+        return short(repo.heads()[0])
 
+    def updateCache(self):
+        # Create the cache repo if needed.
+        if not os.path.isdir(self.repoDir):
+            os.makedirs(self.repoDir)
+        if not os.path.isdir(self.repoDir + '/.hg'):
+            subprocess.check_call(['hg', 'init'], cwd=self.repoDir)
+        subprocess.check_call(['hg', 'pull', '-qf', self.uri], cwd=self.repoDir)
 
-def updateCache(hgui, uri, remote, cacheDir):
-    """Make or update a clone of the given repository."""
-    # Pick a directory to place the clone in. Using the same cache dir as
-    # conary's lookaside means that the recipe load can use it as well.
-    dirPath = uri.split('//', 1)[-1]
-    dirPath = dirPath.replace('/', '_')
-    dirPath = os.path.join(cacheDir, dirPath, 'hg')
+    def checkout(self, workDir):
+        subprocess.check_call(['hg', 'archive', '--type=files',
+            '--rev', self.revision, workDir], cwd=self.repoDir)
 
-    # Create the cache repo if needed.
-    if not os.path.isdir(dirPath):
-        os.makedirs(dirPath)
-    if os.path.isdir(dirPath + '/.hg'):
-        repo = hg.repository(hgui, dirPath)
-    else:
-        repo = hg.repository(hgui, dirPath, create=True)
-
-    # Pull all new remote heads.
-    log.debug("Pre-clone: repo %s has heads: %s", dirPath,
-            ' '.join(sorted(short(x) for x in repo.heads())))
-    repo.pull(remote, force=True)
-    log.debug("Post-clone: repo %s has heads: %s", dirPath,
-            ' '.join(sorted(short(x) for x in repo.heads())))
-
-    # Try to work around weird issue that only happens to the conary tree where
-    # .changectx(new_head) fails even though .heads() clearly shows that the
-    # head exists.
-    repo.invalidate()
-    return repo
-
-
-def getRecipe(uri, rev, subpath, cacheDir):
-    """Get file contents for a subset of the given hg repository."""
-    # Update the local repository cache.
-    hgui = ui.ui()
-    if hasattr(hg, 'peer'):
-        # hg >= 2.3
-        if hg.islocal(uri):
-            repo = hg.repository(hgui, uri)
-        else:
-            remote = hg.peer(hgui, {}, uri)
-            repo = updateCache(hgui, uri, remote, cacheDir)
-    else:
-        # hg < 2.3
-        repo = hg.repository(hgui, uri)
-        if not hg.islocal(repo):
-            repo = updateCache(hgui, uri, repo, cacheDir)
-    cctx = repo.changectx(rev)
-
-    # Pull out and return the recipe file contents.
-    subpath = subpath.strip('/').split('/')
-    splen = len(subpath)
-
-    # Pre-solve directory symlinks
-    changed = True
-    while changed:
-        changed = False
-        for n in range(len(subpath), 0, -1):
-            filepath = '/'.join(subpath[:n])
-            if filepath not in cctx:
-                continue
-            fctx = cctx.filectx(filepath)
-            if 'l' in fctx.flags():
-                newpath = os.path.join(os.path.dirname(filepath), fctx.data())
-                newpath = os.path.normpath(newpath)
-                subpath = newpath.strip('/').split('/')
-                splen = len(subpath)
-                changed = True
-            break
-
-
-    files = {}
-    for filepath in cctx:
-        name = filepath.split('/')
-        if name[:splen] == subpath:
-            fctx = cctx.filectx(filepath)
-            while 'l' in fctx.flags():
-                # Resolve symlinks
-                newpath = os.path.join(os.path.dirname(filepath), fctx.data())
-                newpath = os.path.normpath(newpath)
-                fctx = cctx.filectx(newpath)
-            newname = '/'.join(name[splen:])
-            files[newname] = fctx.data()
-
-    return files
+    def getAction(self):
+        return 'addMercurialSnapshot(%r, tag=%r)' % (self.uri, self.revision)
