@@ -47,7 +47,7 @@ class ScmRepository(object):
             files = {}
             for name in os.listdir(os.path.join(workDir, subpath)):
                 filePath = os.path.realpath(os.path.join(subDir, name))
-                if not filePath.startswith(subDir):
+                if not filePath.startswith(workDir):
                     raise RuntimeError(
                             "Illegal symlink %s points outside checkout: %s"
                             % (os.path.join(subpath, name), filePath))
