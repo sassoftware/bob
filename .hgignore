@@ -6,3 +6,4 @@
 ^bin/bob$
 ^bin/bob-deps$
 ^build/
+output/

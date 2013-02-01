@@ -83,8 +83,6 @@ def main(args):
         edges = {}
         for item, providers in provides.iteritems():
             requirers = requires.get(item, set())
-            if not requirers:
-                continue
             for provider in providers:
                 edges[provider] = set(requirers)
 
@@ -93,6 +91,8 @@ def main(args):
             requirers = dedupe(requirers, edges)
             edges_trimmed[provider] = requirers
         import pprint
+        print '# map of providers to the set of requirers'
+        print 'dep_graph = ',
         pprint.pprint(edges_trimmed)
 
     if options.required_hosts:
