@@ -212,17 +212,16 @@ class BobMain(object):
                 repo.revision = rev
             elif tips is not None:
                 rev = tips.get(uri)
-                if path and not rev:
-                    # Try the URI without the branch suffix
-                    uri = path
-                    rev = tips.get(uri)
+                if not rev:
+                    # Try the bare SCM alias
+                    rev = tips.get(name)
                 if rev:
                     log.debug('Selected for %s revision %s (from tips)', uri,
                             rev)
                     repo.revision = rev
                 else:
                     raise RuntimeError('tips file exists, but does not '
-                            'contain repository %s' % uri)
+                            'contain repository %s or alias %s' % (uri, name))
             else:
                 log.warning('No explicit revision given for repository %s, '
                         'using latest', uri)

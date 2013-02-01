@@ -55,7 +55,8 @@ class GitRepository(scm.ScmRepository):
             os.makedirs(self.repoDir)
         if not (os.path.isdir(self.repoDir + '/refs')
                 or os.path.isdir(self.repoDir + '/.git/refs')):
-            subprocess.check_call(['git', 'init', '--bare'], cwd=self.repoDir)
+            subprocess.check_call(['git', 'init', '-q', '--bare'],
+                    cwd=self.repoDir)
         subprocess.check_call(['git', 'fetch', '-q',
             self.uri, '+%s:%s' % (self.branch, self.branch)], cwd=self.repoDir)
 
