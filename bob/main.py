@@ -414,12 +414,13 @@ The complete related traceback has been saved as %(stackfile)s
 
     for val in (options.set_tag or ()):
         name, tag = val.split('=', 1)
-        uri = plan.hg.get(name)
-        if not uri:
-            raise KeyError("hg %r is not in the plan file" % (name,))
+        scm = plan.scm.get(name)
+        if not scm:
+            raise KeyError("scm %r is not in the plan file" % (name,))
+        kind, uri = scm.split(' ', 1)
         if ' ' in uri:
             uri = uri.split(' ')[0]
-        plan.hg[name] = ' '.join((uri, tag))
+        plan.scm[name] = ' '.join((kind, uri, tag))
 
     for val in (options.set_version or ()):
         name, version = val.split('=', 1)
