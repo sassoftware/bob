@@ -49,7 +49,6 @@ log = logging.getLogger('bob.main')
 class BobMain(object):
     bobCache = '__bob__'
 
-
     def __init__(self, pluginmgr):
         pluginmgr.callClientHook('client_preInit', self, sys.argv)
 
@@ -60,7 +59,7 @@ class BobMain(object):
         self._helper = ClientHelper(bcfg, None, pluginmgr)
         self._targetConfigs = {}
         self._macros = {}
-        
+
         # repo info
         self._scm = {}
 
@@ -126,9 +125,10 @@ class BobMain(object):
             batch.addPackage(package)
 
         batch.shadow()
-
-
-        return targetPackages
+        if self._cfg.depMode:
+            return targetPackages, batch
+        else:
+            return targetPackages
 
     def _configure(self):
         '''
@@ -154,8 +154,9 @@ class BobMain(object):
         cfg.cleanAfterCook = not self._cfg.noClean
         cfg.resolveTroves = substResolveTroves(self._cfg.resolveTroves,
             self._macros)
-        cfg.resolveTroveTups = buildcmd._getResolveTroveTups(
-            cfg, self._helper.getRepos())
+        if not self._cfg.depMode:
+            cfg.resolveTroveTups = buildcmd._getResolveTroveTups(
+                cfg, self._helper.getRepos())
         cfg.autoLoadRecipes = substStringList(self._cfg.autoLoadRecipes,
                                               self._macros)
         if not self._cfg.isDefault('defaultBuildReqs'):
@@ -177,7 +178,8 @@ class BobMain(object):
                 # Maybe requires a build-time macro
                 pass
 
-        self._helper.getrMakeClient().addRepositoryInfo(cfg)
+        if not self._cfg.depMode:
+            self._helper.getrMakeClient().addRepositoryInfo(cfg)
         self._helper.configChanged()
 
     def _freezeScm(self):
@@ -223,15 +225,17 @@ class BobMain(object):
                     raise RuntimeError('tips file exists, but does not '
                             'contain repository %s or alias %s' % (uri, name))
             else:
-                log.warning('No explicit revision given for repository %s, '
-                        'using latest', uri)
+                if not self._cfg.depMode:
+                    log.warning('No explicit revision given for repository %s, '
+                            'using latest', uri)
                 repo.revision = repo.getTip()
             repo.updateCache()
             if len(repo.revision) == 40:
                 repo.revision = repo.revision[:12]
             self._scm[name] = repo
-            log.info("For repository %s, using %s revision %s", name, uri,
-                    repo.revision)
+            if not self._cfg.depMode:
+                log.info("For repository %s, using %s revision %s", name, uri,
+                        repo.revision)
 
     def _registerCommand(self, *args, **kwargs):
         'Fake rMake hook'
@@ -313,6 +317,13 @@ class BobMain(object):
         reportCommitMap(commitMap)
 
         return 0
+
+    def runDeps(self):
+        self._cfg.depMode = True
+        self._configure()
+        self._freezeScm()
+        return self.loadTargets()
+
 
 def getPluginManager():
     cfg = buildcfg.BuildConfiguration(True, ignoreErrors=True)

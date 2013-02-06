@@ -26,10 +26,10 @@ import shutil
 import tempfile
 
 from conary.build import cook
+from conary.build import recipe as cny_recipe
 from conary.build import use
 from conary.build.loadrecipe import RecipeLoader
 from conary.build.lookaside import RepositoryCache
-from conary.build.recipe import isPackageRecipe
 from conary.changelog import ChangeLog
 from conary.conaryclient import filetypes
 from conary.deps import deps
@@ -74,6 +74,8 @@ class ShadowBatch(object):
 
         self._makeProddef()
         self._makeRecipes()
+        if self.helper.plan.depMode:
+            return
         self._fetchOldChangeSets()
         self._merge()
 
@@ -83,6 +85,11 @@ class ShadowBatch(object):
             recipe = package.getRecipe()
             finalRecipe = mangle(package, recipe)
             package.recipeFiles[package.getRecipeName()] = finalRecipe
+            if self.helper.plan.dumpRecipes:
+                with open(os.path.join(self.helper.plan.recipeDir,
+                        package.getRecipeName()), 'w') as fobj:
+                    fobj.write(finalRecipe)
+                continue
 
             # Write to disk for convenience, then load
             tempDir = tempfile.mkdtemp(prefix=('%s-'
@@ -224,7 +231,7 @@ class ShadowBatch(object):
 
             # Collect requested auto sources from recipe.
             modified = False
-            if isPackageRecipe(recipeObj):
+            if cny_recipe.isPackageRecipe(recipeObj):
                 recipeFiles = dict((os.path.basename(x.getPath()), x)
                     for x in recipeObj.getSourcePathList())
                 newFiles = set(x[1] for x in newTrove.iterFileList())
@@ -362,20 +369,20 @@ def _loadRecipe(helper, package, recipePath):
     # Load the recipe
     use.setBuildFlagsFromFlavor(package.getPackageName(),
             helper.cfg.buildFlavor, error=False)
-    loader = RecipeLoader(recipePath, helper.cfg, helper.getRepos())
+    loader = RecipeLoader(recipePath, helper.cfg, helper.getRepos(),
+            directory=helper.plan.recipeDir)
     recipeClass = loader.getRecipe()
 
-    # Instantiate and setup if a package recipe
-    if isPackageRecipe(recipeClass):
+    dummybranch = Branch([helper.plan.getTargetLabel()])
+    dummyrev = Revision('1-1')
+    dummyver = dummybranch.createVersion(dummyrev)
+    macros = {
+            'buildlabel': dummybranch.label().asString(),
+            'buildbranch': dummybranch.asString(),
+            }
+    # Instantiate and setup if needed
+    if cny_recipe.isPackageRecipe(recipeClass):
         lcache = RepositoryCache(helper.getRepos())
-
-        dummybranch = Branch([helper.plan.getTargetLabel()])
-        dummyrev = Revision('1-1')
-        dummyver = dummybranch.createVersion(dummyrev)
-        macros = {
-                'buildlabel': dummybranch.label().asString(),
-                'buildbranch': dummybranch.asString(),
-                }
 
         recipeObj = recipeClass(helper.cfg, lcache, [], macros,
             lightInstance=True)
@@ -383,6 +390,15 @@ def _loadRecipe(helper, package, recipePath):
         recipeObj.populateLcache()
         if not recipeObj.needsCrossFlags():
             recipeObj.crossRequires = []
+        recipeObj.loadPolicy()
+        recipeObj.setup()
+        return recipeObj
+    elif cny_recipe.isGroupRecipe(recipeClass):
+        # Only necessary for dependency analysis
+        recipeObj = recipeClass(helper.getRepos(), helper.cfg,
+                dummybranch.label(), helper.cfg.buildFlavor, None,
+                extraMacros=macros)
+        recipeObj.sourceVersion = dummyver
         recipeObj.loadPolicy()
         recipeObj.setup()
         return recipeObj

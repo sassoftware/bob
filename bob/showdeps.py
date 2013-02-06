@@ -14,18 +14,25 @@
 # limitations under the License.
 #
 
-
+import itertools
+import logging
 import optparse
 import os
 import sys
-import traceback
+import tempfile
 from bob import config
+from bob import main as bobmain
+from conary.lib import log as cny_log
+from conary.lib import util
+
+log = logging.getLogger('showdeps')
 
 
-def analyze_plan(provides, requires, root, relpath):
+def analyze_plan(provides, requires, root, relpath, pluginMgr, recipeDir):
     cfg = config.BobConfig()
     path = os.path.join(root, relpath)
     cfg.read(path)
+    cfg.recipeDir = recipeDir
 
     # Provide each source that this plan would build
     label = cfg.getTargetLabel()
@@ -38,6 +45,44 @@ def analyze_plan(provides, requires, root, relpath):
         for item in bucket:
             item %= cfg.getMacros()
             requires.setdefault(item, set()).add(relpath)
+
+    # Analyze recipe for provides, and in the case of groups, requires
+    log.info("Loading recipes for plan %s", relpath)
+    bob = bobmain.BobMain(pluginMgr)
+    bob.setPlan(cfg)
+    targets, batch = bob.runDeps()
+    for package, (_, recipeObj) in zip(batch.packages, batch.recipes):
+        if package.name.startswith('group-'):
+            if not hasattr(recipeObj, 'getAdditionalSearchPath'):
+                log.warning("Recipe for %s does not have a "
+                        "getAdditionalSearchPath method; cannot analyze "
+                        "requirements.", package.name)
+                continue
+            path = recipeObj.getAdditionalSearchPath()
+            if not path:
+                log.warning("Recipe for %s does not have a "
+                        "getAdditionalSearchPath method; cannot analyze "
+                        "requirements.", package.name)
+                continue
+            for item in itertools.chain(*path):
+                item = item.split('[')[0]
+                requires.setdefault(item, set()).add(relpath)
+        elif hasattr(recipeObj, 'packages'):
+            for name in recipeObj.packages:
+                provide = '%s=%s' % (name, label)
+                provides.setdefault(provide, set()).add(relpath)
+
+
+def dump_recipes(root, relpath, pluginMgr, recipeDir):
+    log.info("Dumping recipes for %s", relpath)
+    cfg = config.BobConfig()
+    path = os.path.join(root, relpath)
+    cfg.read(path)
+    cfg.dumpRecipes = True
+    cfg.recipeDir = recipeDir
+    bob = bobmain.BobMain(pluginMgr)
+    bob.setPlan(cfg)
+    bob.runDeps()
 
 
 def dedupe(requirers, edges):
@@ -57,27 +102,55 @@ def dedupe(requirers, edges):
 
 
 def main(args):
+    cny_log.setupLogging(consoleLevel=logging.INFO)
     parser = optparse.OptionParser(usage='%prog {--graph,--required-hosts} root')
     parser.add_option('--graph', action='store_true')
     parser.add_option('--required-hosts', action='store_true')
     options, args = parser.parse_args(args)
     if not args or not (options.graph or options.required_hosts):
         parser.error('wrong arguments')
-    provides = {}
-    requires = {}
-    for root in args:
-        root = os.path.abspath(root)
-        for dirpath, dirnames, filenames in os.walk(root):
-            reldir = dirpath[len(root)+1:]
-            for filename in filenames:
-                if filename.endswith('.bob'):
-                    relpath = os.path.join(reldir, filename)
-                    try:
-                        analyze_plan(provides, requires, root, relpath)
-                    except:
-                        print 'Error parsing file %s:' % relpath
-                        traceback.print_exc()
-                        sys.exit(1)
+
+    failed = False
+    bobfiles = set()
+    pluginMgr = bobmain.getPluginManager()
+    recipeDir = tempfile.mkdtemp(prefix='bob-recipes-')
+    try:
+        for root in args:
+            root = os.path.abspath(root)
+            for dirpath, dirnames, filenames in os.walk(root):
+                dirnames.sort()
+                filenames.sort()
+                reldir = dirpath[len(root)+1:]
+                for filename in filenames:
+                    if filename.endswith('.bob'):
+                        relpath = os.path.join(reldir, filename)
+                        bobfiles.add(relpath)
+        for relpath in bobfiles:
+            try:
+                dump_recipes(root, relpath, pluginMgr, recipeDir)
+            except KeyboardInterrupt:
+                raise
+            except:
+                log.exception("Error parsing file %s:", relpath)
+                failed = True
+        if failed:
+            sys.exit(1)
+
+        provides = {}
+        requires = {}
+        for relpath in sorted(bobfiles):
+            try:
+                analyze_plan(provides, requires, root, relpath, pluginMgr,
+                        recipeDir)
+            except KeyboardInterrupt:
+                raise
+            except:
+                log.exception("Error parsing file %s:", relpath)
+                failed = True
+        if failed:
+            sys.exit(1)
+    finally:
+        util.rmtree(recipeDir)
 
     if options.graph:
         edges = {}

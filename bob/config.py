@@ -20,7 +20,7 @@ import time
 from conary.build.macros import Macros
 from conary.conarycfg import CfgFlavor
 from conary.lib import cfg
-from conary.lib.cfgtypes import CfgList, CfgString, CfgDict
+from conary.lib.cfgtypes import CfgList, CfgString, CfgDict, CfgPath
 from conary.lib.cfgtypes import CfgQuotedLineList, CfgBool, ParseError
 from conary.versions import Label
 from rmake.build.buildcfg import CfgDependency
@@ -82,6 +82,11 @@ class BobConfig(cfg.SectionedConfigFile):
     # misc
     commitMessage           = (CfgString, 'Automated clone by bob')
     skipMacros              = (CfgList(CfgString), ['version'])
+
+    # debugging
+    dumpRecipes             = CfgBool
+    depMode                 = CfgBool
+    recipeDir               = CfgPath
 
     # custom handling of sections
     _sectionMap = {'target': BobTargetSection}
