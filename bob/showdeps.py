@@ -67,6 +67,9 @@ def analyze_plan(provides, requires, root, relpath, pluginMgr, recipeDir):
             for item in itertools.chain(*path):
                 item = item.split('[')[0]
                 requires.setdefault(item, set()).add(relpath)
+            for name in recipeObj.groups:
+                provide = '%s=%s' % (name, label)
+                provides.setdefault(provide, set()).add(relpath)
         elif hasattr(recipeObj, 'packages'):
             for name in recipeObj.packages:
                 provide = '%s=%s' % (name, label)
