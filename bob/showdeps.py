@@ -115,6 +115,7 @@ def main(args):
     pluginMgr = bobmain.getPluginManager()
     recipeDir = tempfile.mkdtemp(prefix='bob-recipes-')
     try:
+        # Collect a list of bob plans
         for root in args:
             root = os.path.abspath(root)
             for dirpath, dirnames, filenames in os.walk(root):
@@ -125,6 +126,9 @@ def main(args):
                     if filename.endswith('.bob'):
                         relpath = os.path.join(reldir, filename)
                         bobfiles.add(relpath)
+
+        # First pass: mangle and dump all the recipes so that loadSuperClass()
+        # can work without actually committing anything.
         for relpath in bobfiles:
             try:
                 dump_recipes(root, relpath, pluginMgr, recipeDir)
@@ -136,6 +140,8 @@ def main(args):
         if failed:
             sys.exit(1)
 
+        # Second pass: make provides and requires out of the bob plan, recipe
+        # PackageSpecs, and group recipe inputs.
         provides = {}
         requires = {}
         for relpath in sorted(bobfiles):
@@ -153,12 +159,15 @@ def main(args):
         util.rmtree(recipeDir)
 
     if options.graph:
+        # Make edges out of any provided thing. Requires that don't match any
+        # provider are discarded, since they are outside the analyzed set.
         edges = {}
         for item, providers in provides.iteritems():
             requirers = requires.get(item, set())
             for provider in providers:
                 edges[provider] = set(requirers)
 
+        # Remove edges that are made entirely redundant by a longer path.
         edges_trimmed = {}
         for provider, requirers in edges.iteritems():
             requirers = dedupe(requirers, edges)
