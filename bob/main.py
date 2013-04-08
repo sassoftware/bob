@@ -379,7 +379,7 @@ def _main(plan):
 def banner():
     rev = version.revision and ' (revision %s)' % version.revision or ''
     print 'Bob the Constructinator version %s%s' % (version.version, rev)
-    print 'Copyright (c) 2010 rPath, Inc.'
+    print 'Copyright (c) SAS Institute, Inc.'
     print 'All rights reserved.'
     print
 
