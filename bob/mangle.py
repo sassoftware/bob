@@ -98,12 +98,17 @@ def mSource(package, recipe):
     '''
 
     name = package.getTargetConfig().scm
-    scmData = package.getMangleData()['scm']
+    data = package.getMangleData()
+    scmData = data['scm']
     if not scmData.has_key(name):
         logging.warning('Trove %s references undefined SCM repository %s',
             package.getPackageName(), name)
     repo = scmData[name]
-    return RE_SOURCE.sub(r'\1\2.' + repo.getAction(), recipe, count=1)
+    action = repo.getAction()
+    if data['plan'].ephemeral:
+        assert action.endswith(')')
+        action = action[:-1] + ', ephemeral=True)'
+    return RE_SOURCE.sub(r'\1\2.' + action, recipe, count=1)
 
 
 @_register

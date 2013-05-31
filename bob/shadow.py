@@ -233,7 +233,7 @@ class ShadowBatch(object):
             modified = False
             if cny_recipe.isPackageRecipe(recipeObj):
                 recipeFiles = dict((os.path.basename(x.getPath()), x)
-                    for x in recipeObj.getSourcePathList())
+                    for x in recipeObj.getSourcePathList(withEphemeral=False))
                 newFiles = set(x[1] for x in newTrove.iterFileList())
 
                 needFiles = set(recipeFiles) - newFiles
