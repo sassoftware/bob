@@ -95,7 +95,7 @@ class BobMain(object):
                         'plan': self._cfg,
                         }
         for name in self._cfg.target:
-            packageName = name.split(':')[0]
+            packageName = name.split(':')[0] % self._macros
             sourceName = packageName + ':source'
             targetConfig = self._targetConfigs.get(name, None)
             if not targetConfig.sourceTree:
