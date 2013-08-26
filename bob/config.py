@@ -48,10 +48,17 @@ class BobTargetSection(cfg.ConfigSection):
     serializeFlavors        = CfgBool
     noCommit                = CfgBool
 
+    _cfg_aliases = [
+            ('hg', 'scm'),
+            ('git', 'scm'),
+            ]
+
     def __init__(self, *args, **kwargs):
         cfg.ConfigSection.__init__(self, *args, **kwargs)
-        self.addAlias('hg', 'scm')
-        self.addAlias('git', 'scm')
+        if hasattr(self, 'addAlias'):
+            # Conary <= 2.4
+            self.addAlias('hg', 'scm')
+            self.addAlias('git', 'scm')
 
 
 class BobConfig(cfg.SectionedConfigFile):
@@ -96,7 +103,9 @@ class BobConfig(cfg.SectionedConfigFile):
         cfg.SectionedConfigFile.__init__(self)
         self.scmPins = {}
         self._macros = None
-        self.addDirective('hg', '_hg')
+        if hasattr(self, 'addDirective'):
+            # Conary <= 2.4
+            self.addDirective('hg', 'hg')
 
     def read(self, path, **kwargs):
         if path.startswith('http://') or path.startswith('https://'):
@@ -164,9 +173,12 @@ class BobConfig(cfg.SectionedConfigFile):
     def getTargetLabel(self):
         return Label(self.targetLabel % self.getMacros())
 
-    def _hg(self, value):
+    def hg(self, value):
         key, value = value.split(' ', 1)
         self.configLine('scm %s hg %s' % (key, value))
+    if hasattr(cfg, 'directive'):
+        # Conary >= 2.5
+        hg = cfg.directive(hg)
 
 
 def openPlan(path, preload=DEFAULT_PATH):
