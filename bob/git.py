@@ -38,6 +38,9 @@ class GitRepository(scm.ScmRepository):
         dirPath = dirPath.replace('/', '_')
         self.repoDir = os.path.join(cacheDir, dirPath, 'git')
 
+    def isLocal(self):
+        return self.uri.startswith('/') or self.uri.startswith('file:')
+
     def getTip(self):
         self.updateCache()
         p = subprocess.Popen(['git', 'rev-parse', self.branch],
@@ -72,6 +75,6 @@ class GitRepository(scm.ScmRepository):
         if p2.returncode:
             raise RuntimeError("tar exited with status %s" % p1.returncode)
 
-    def getAction(self):
-        return 'addGitSnapshot(%r, branch=%r, tag=%r)' % (
-                self.uri, self.branch, self.revision)
+    def getAction(self, extra=''):
+        return 'addGitSnapshot(%r, branch=%r, tag=%r%s)' % (
+                self.uri, self.branch, self.revision, extra)

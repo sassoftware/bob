@@ -23,6 +23,10 @@ class ScmRepository(object):
 
     revision = None
 
+    def isLocal(self):
+        """Returns True if the repository is on the local filesystem"""
+        return False
+
     def getTip(self):
         """Return the latest commit ID for this repository"""
         raise NotImplementedError
@@ -57,6 +61,6 @@ class ScmRepository(object):
         finally:
             util.rmtree(workDir)
 
-    def getAction(self):
+    def getAction(self, extra=''):
         """Return a Conary source action to unpack this repository"""
         raise NotImplementedError

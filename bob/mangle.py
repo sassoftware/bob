@@ -104,10 +104,10 @@ def mSource(package, recipe):
         logging.warning('Trove %s references undefined SCM repository %s',
             package.getPackageName(), name)
     repo = scmData[name]
-    action = repo.getAction()
-    if data['plan'].ephemeral:
-        assert action.endswith(')')
-        action = action[:-1] + ', ephemeral=True)'
+    extra = ''
+    if data['plan'].ephemeral and not repo.isLocal():
+        extra += ', ephemeral=True'
+    action = repo.getAction(extra=extra)
     return RE_SOURCE.sub(r'\1\2.' + action, recipe, count=1)
 
 

@@ -40,6 +40,9 @@ class HgRepository(scm.ScmRepository):
         dirPath = dirPath.replace('/', '_')
         self.repoDir = os.path.join(cacheDir, dirPath, 'hg')
 
+    def isLocal(self):
+        return self.uri.startswith('/') or self.uri.startswith('file:')
+
     def getTip(self):
         hg_ui = ui.ui()
         if hasattr(hg, 'peer'):
@@ -60,5 +63,6 @@ class HgRepository(scm.ScmRepository):
         subprocess.check_call(['hg', 'archive', '--type=files',
             '--rev', self.revision, workDir], cwd=self.repoDir)
 
-    def getAction(self):
-        return 'addMercurialSnapshot(%r, tag=%r)' % (self.uri, self.revision)
+    def getAction(self, extra=''):
+        return 'addMercurialSnapshot(%r, tag=%r%s)' % (self.uri, self.revision,
+                extra)
