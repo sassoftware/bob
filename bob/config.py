@@ -63,7 +63,7 @@ class BobConfig(cfg.SectionedConfigFile):
     override                = CfgDict(CfgString)
     resolveTroves           = CfgList(CfgQuotedLineList(
                                         CfgString)) # macros supported
-    resolveTrovesOnly       = (CfgBool, False)
+    resolveTrovesOnly       = (CfgBool, True)
     ephemeral               = (CfgBool, False)
     autoLoadRecipes         = (CfgList(CfgString), [])
     scm                     = CfgDict(CfgString)    # macros supported
