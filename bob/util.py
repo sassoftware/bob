@@ -20,8 +20,10 @@ Utility functions
 '''
 
 import logging
+import os
 import subprocess
 import signal
+import tempfile
 import time
 
 from conary import conaryclient
@@ -58,6 +60,7 @@ class ClientHelper(object):
         self._conaryClient = None
         self._rmakeClient = None
         self._rmakeHelper = None
+        self.ephemeralDir = None
 
     def configChanged(self):
         '''
@@ -90,6 +93,16 @@ class ClientHelper(object):
     def getrMakeClient(self):
         '''Get a rMakeClient'''
         return self.getrMakeHelper().client
+
+    def makeEphemeralDir(self):
+        if not self.ephemeralDir:
+            assert not self.cfg._sections
+            self.ephemeralDir = tempfile.mkdtemp(
+                    dir=self.plan.ephemeralSourceDir)
+            os.chmod(self.ephemeralDir, 0755)
+            self.cfg.sourceSearchDir = '/sources/' + os.path.basename(
+                    self.ephemeralDir)
+        return self.ephemeralDir
 
     # Passthroughs
     def callClientHook(self, *args):

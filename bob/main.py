@@ -290,7 +290,11 @@ class BobMain(object):
         commitMap = {}
         for batch in recurse.getBatchFromPackages(self._helper, targetPackages):
             try:
-                newTroves = batch.run(self)
+                try:
+                    newTroves = batch.run(self)
+                finally:
+                    if self._helper.ephemeralDir:
+                        cny_util.rmtree(self._helper.ephemeralDir)
             except JobFailedError, e:
                 print 'Job %d failed:' % e.jobId
                 print e.why

@@ -72,6 +72,7 @@ class BobConfig(cfg.SectionedConfigFile):
                                         CfgString)) # macros supported
     resolveTrovesOnly       = (CfgBool, True)
     ephemeral               = (CfgBool, False)
+    ephemeralSourceDir      = CfgPath
     autoLoadRecipes         = (CfgList(CfgString), [])
     scm                     = CfgDict(CfgString)    # macros supported
 

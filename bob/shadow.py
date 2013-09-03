@@ -26,6 +26,7 @@ import shutil
 import tempfile
 
 from conary.build import cook
+from conary.build import lookaside
 from conary.build import recipe as cny_recipe
 from conary.build import use
 from conary.build.loadrecipe import RecipeLoader
@@ -34,7 +35,7 @@ from conary.changelog import ChangeLog
 from conary.conaryclient import filetypes
 from conary.deps import deps
 from conary.files import FileFromFilesystem, ThawFile
-from conary.lib.util import mkdirChain
+from conary.lib.util import mkdirChain, joinPaths
 from conary.repository import filecontents
 from conary.repository import trovesource
 from conary.repository.changeset import ChangedFileTypes, ChangeSet
@@ -176,6 +177,12 @@ class ShadowBatch(object):
         changeSet = ChangeSet()
         deleteDirs = set()
         doCommit = False
+        # If this is not None then all ephemeral sources will still be fetched
+        # but will be placed in this directory instead.
+        if self.helper.plan.ephemeralSourceDir:
+            ephDir = self.helper.makeEphemeralDir()
+        else:
+            ephDir = None
 
         def _addFile(path, contents, isText):
             if path in oldFiles:
@@ -230,41 +237,47 @@ class ShadowBatch(object):
                 _addFile(path, contents, isText)
 
             # Collect requested auto sources from recipe.
-            modified = False
             if cny_recipe.isPackageRecipe(recipeObj):
                 recipeFiles = dict((os.path.basename(x.getPath()), x)
-                    for x in recipeObj.getSourcePathList(withEphemeral=False))
+                    for x in recipeObj.getSourcePathList())
                 newFiles = set(x[1] for x in newTrove.iterFileList())
 
                 needFiles = set(recipeFiles) - newFiles
                 for autoPath in needFiles:
+                    source = recipeFiles[autoPath]
                     if autoPath in oldFiles:
                         # File exists in old version.
                         pathId, path, fileId, fileVer = oldFiles[autoPath]
                         newTrove.addFile(pathId, path, fileVer, fileId)
+                        continue
 
+                    if source.ephemeral and not ephDir:
+                        continue
+
+                    # File doesn't exist; need to create it.
+                    if source.ephemeral:
+                        laUrl = lookaside.laUrl(source.getPath())
+                        tempDir = joinPaths(ephDir,
+                                os.path.dirname(laUrl.filePath()))
+                        mkdirChain(tempDir)
                     else:
-                        # File doesn't exist; need to create it.
-                        source = recipeFiles[autoPath]
-                        snapshot, delete = _getSnapshot(self.helper, source)
-                        if delete:
-                            deleteDirs.add(delete)
+                        tempDir = tempfile.mkdtemp()
+                        deleteDirs.add(tempDir)
+                    snapshot = _getSnapshot(self.helper, source, tempDir)
 
-                        autoPathId = hashlib.md5(autoPath).digest()
-                        autoObj = FileFromFilesystem(snapshot, autoPathId)
-                        autoObj.flags.isAutoSource(set=True)
-                        autoObj.flags.isSource(set=True)
-                        autoFileId = autoObj.fileId()
+                    autoPathId = hashlib.md5(autoPath).digest()
+                    autoObj = FileFromFilesystem(snapshot, autoPathId)
+                    autoObj.flags.isAutoSource(set=True)
+                    autoObj.flags.isSource(set=True)
+                    autoFileId = autoObj.fileId()
 
-                        autoContents = filecontents.FromFilesystem(snapshot)
-                        filesToAdd[autoFileId] = (autoObj, autoContents, False)
-                        newTrove.addFile(autoPathId, autoPath,
-                            newVersion, autoFileId)
-
-                        modified = True
+                    autoContents = filecontents.FromFilesystem(snapshot)
+                    filesToAdd[autoFileId] = (autoObj, autoContents, False)
+                    newTrove.addFile(autoPathId, autoPath,
+                        newVersion, autoFileId)
 
             # If the old and new troves are identical, just use the old one.
-            if not modified and oldTrove and _sourcesIdentical(
+            if oldTrove and _sourcesIdentical(
                     oldTrove, newTrove, [self.oldChangeSet, filesToAdd]):
                 package.setDownstreamVersion(oldTrove.getNewVersion())
                 log.debug('Skipped %s=%s', oldTrove.getName(),
@@ -432,16 +445,19 @@ def _maxVersion(versions):
             if x.trailingRevision().sourceCount == maxSourceCount)
 
 
-def _getSnapshot(helper, source):
+def _getSnapshot(helper, source, tempDir):
     """
     Create a snapshot of a revision-control source in a temporary location.
 
     Returns a tuple C{(path, delete)} where C{delete} is C{None} or a directory
     that should be deleted after use.
     """
-    # This function deals exclusively with SCC actions
     if not hasattr(source, 'createSnapshot'):
-        return source.fetch(), None
+        fullPath = source.fetch()
+        name = os.path.basename(fullPath)
+        newName = os.path.join(tempDir, name)
+        shutil.move(fullPath, newName)
+        return newName
 
     fullPath = source.getFilename()
     reposPath = '/'.join(fullPath.split('/')[:-1] + [ source.name ])
@@ -453,11 +469,10 @@ def _getSnapshot(helper, source):
     else:
         source.updateArchive(repositoryDir)
 
-    tempDir = tempfile.mkdtemp()
     snapPath = os.path.join(tempDir, os.path.basename(fullPath))
     source.createSnapshot(repositoryDir, snapPath)
 
     if fullPath.endswith('.bz2') and not checkBZ2(snapPath):
         raise RuntimeError("Autosource file %r is corrupt!" % (snapPath,))
 
-    return snapPath, tempDir
+    return snapPath
