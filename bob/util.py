@@ -29,6 +29,7 @@ import time
 from conary import conaryclient
 from rmake.cmdline import helper
 from rmake.cmdline import monitor
+from conary.lib import util
 from conary.lib.digestlib import md5
 
 log = logging.getLogger('bob.util')
@@ -96,13 +97,21 @@ class ClientHelper(object):
 
     def makeEphemeralDir(self):
         if not self.ephemeralDir:
-            assert not self.cfg._sections
             self.ephemeralDir = tempfile.mkdtemp(
                     dir=self.plan.ephemeralSourceDir)
             os.chmod(self.ephemeralDir, 0755)
-            self.cfg.sourceSearchDir = '/sources/' + os.path.basename(
-                    self.ephemeralDir)
+            ssd = '/sources/' + os.path.basename(self.ephemeralDir)
+            self.cfg.sourceSearchDir = ssd
+            for section in self.cfg._sections.values():
+                section.sourceSearchDir = ssd
         return self.ephemeralDir
+
+    def cleanupEphemeralDir(self):
+        if not self.ephemeralDir:
+            return
+        if os.path.isdir(self.ephemeralDir):
+            util.rmtree(self.ephemeralDir)
+        self.ephemeralDir = None
 
     # Passthroughs
     def callClientHook(self, *args):

@@ -293,8 +293,7 @@ class BobMain(object):
                 try:
                     newTroves = batch.run(self)
                 finally:
-                    if self._helper.ephemeralDir:
-                        cny_util.rmtree(self._helper.ephemeralDir)
+                    self._helper.cleanupEphemeralDir()
             except JobFailedError, e:
                 print 'Job %d failed:' % e.jobId
                 print e.why
