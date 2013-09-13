@@ -88,7 +88,7 @@ class ClientHelper(object):
         '''Get a rMakeHelper'''
         if not self._rmakeHelper:
             self._rmakeHelper = helper.rMakeHelper(
-                buildConfig=self.cfg)
+                buildConfig=self.cfg, promptPassword=True)
         return self._rmakeHelper
 
     def getrMakeClient(self):
