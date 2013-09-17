@@ -308,7 +308,18 @@ class ShadowBatch(object):
 
         if doCommit:
             cook.signAbsoluteChangesetByConfig(changeSet, self.helper.cfg)
-            self.helper.getRepos().commitChangeSet(changeSet)
+            f = tempfile.NamedTemporaryFile(dir=os.getcwd(), suffix='.ccs',
+                    delete=False)
+            f.close()
+            changeSet.writeToFile(f.name)
+            try:
+                self.helper.getRepos().commitChangeSet(changeSet)
+            except:
+                log.error("Error committing changeset to repository, "
+                        "failed changeset is saved at %s", f.name)
+                raise
+            else:
+                os.unlink(f.name)
 
         for path in deleteDirs:
             shutil.rmtree(path)
