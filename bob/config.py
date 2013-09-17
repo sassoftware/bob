@@ -75,6 +75,7 @@ class BobConfig(cfg.SectionedConfigFile):
     ephemeralSourceDir      = CfgPath
     autoLoadRecipes         = (CfgList(CfgString), [])
     scm                     = CfgDict(CfgString)    # macros supported
+    refreshSources          = (CfgBool, False)
 
     # build
     installLabelPath        = CfgQuotedLineList(
