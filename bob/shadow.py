@@ -407,7 +407,7 @@ def _loadRecipe(helper, package, recipePath):
     # Instantiate and setup if needed
     if cny_recipe.isPackageRecipe(recipeClass):
         lcache = RepositoryCache(helper.getRepos(),
-                refreshFilter=lambda x: helper.cfg.refreshSources)
+                refreshFilter=lambda x: helper.plan.refreshSources)
 
         recipeObj = recipeClass(helper.cfg, lcache, [], macros,
             lightInstance=True)
