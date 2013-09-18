@@ -245,7 +245,8 @@ class ShadowBatch(object):
                 needFiles = set(recipeFiles) - newFiles
                 for autoPath in needFiles:
                     source = recipeFiles[autoPath]
-                    if autoPath in oldFiles:
+                    if (autoPath in oldFiles and not
+                            self.helper.plan.refreshSources):
                         # File exists in old version.
                         pathId, path, fileId, fileVer = oldFiles[autoPath]
                         newTrove.addFile(pathId, path, fileVer, fileId)
