@@ -467,6 +467,8 @@ def _getSnapshot(helper, source, tempDir):
     """
     if not hasattr(source, 'createSnapshot'):
         fullPath = source.fetch()
+        if not source.ephemeral:
+            return fullPath
         name = os.path.basename(fullPath)
         newName = os.path.join(tempDir, name)
         shutil.move(fullPath, newName)
