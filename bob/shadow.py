@@ -129,41 +129,41 @@ class ShadowBatch(object):
         Fetch old versions of each trove, where they can be found
         and are suitably sane.
         """
-        oldSpecs = []
+        versionSpecs = []
+        latestSpecs = []
         targetLabel = self.helper.plan.getTargetLabel()
-        targetBranch = Branch([targetLabel])
         for package in self.packages:
             version = macro.expand(package.getBaseVersion(), package)
-            oldSpecs.append((package.getName(),
+            versionSpecs.append((package.getName(),
                 '%s/%s' % (targetLabel, version), None))
+            latestSpecs.append((package.getName(), str(targetLabel), None))
 
-        # Get *all* troves with the right version so that we can find
-        # versions that are latest on the correct branch but have
-        # been occluded by a newer version on the wrong branch.
-        results = self.helper.getRepos().findTroves(None, oldSpecs,
+        # Pick the new version for each package by querying all existing
+        # versions (including markremoved ones) with the same version.
+        results = self.helper.getRepos().findTroves(None, versionSpecs,
             allowMissing=True, getLeaves=False,
             troveTypes=trovesource.TROVE_QUERY_ALL)
+        for package, (recipeText, recipeObj), query in zip(
+                self.packages, self.recipes, versionSpecs):
+            newVersion = _createVersion(package, self.helper,
+                    recipeObj.version)
+            existingVersions = [x[1] for x in results.get(query, ())]
+            while newVersion in existingVersions:
+                newVersion.incrementSourceCount()
+            package.nextVersion = newVersion
 
+        # Grab the latest existing version so we can reuse autosources from it
+        results = self.helper.getRepos().findTroves(None, latestSpecs,
+                allowMissing=True)
         toGet = []
         oldVersions = []
-        for package, query in zip(self.packages, oldSpecs):
-            if query not in results:
+        for package, query in zip(self.packages, latestSpecs):
+            if not results.get(query):
                 oldVersions.append(None)
                 continue
-
-            # Ignore versions on the wrong branch.
-            oldVersionsForJob = [x[1] for x in results[query]
-                    if x[1].branch() == targetBranch]
-            if not oldVersionsForJob:
-                oldVersions.append(None)
-                continue
-            oldVersion = _maxVersion(oldVersionsForJob)
-
-            # If all preconditions match, fetch the old version so we can base
-            # the new version off that, or maybe even use it as-is.
-            toGet.append((package.getName(), (None, None),
-                (oldVersion, deps.Flavor()), True))
-            oldVersions.append((package.getName(), oldVersion, deps.Flavor()))
+            n, v, f = max(results[query])
+            toGet.append((n, (None, None), (v, f), True))
+            oldVersions.append((n, v, f))
 
         self.oldChangeSet = self.helper.createChangeSet(toGet)
         for package, oldVersion in zip(self.packages, oldVersions):
@@ -202,7 +202,7 @@ class ShadowBatch(object):
             if fileId == oldFileId:
                 fileVersion = oldFileVersion
             else:
-                fileVersion = newVersion
+                fileVersion = newTrove.getVersion()
 
             filesToAdd[fileId] = (fileStream, fileHelper.contents, isText)
             newTrove.addFile(pathId, path, fileVersion, fileId)
@@ -212,21 +212,10 @@ class ShadowBatch(object):
 
             filesToAdd = {}
             oldFiles = {}
-
-            # Create a new trove.
             if oldTrove is not None:
-                newVersion = oldTrove.getNewVersion().copy()
-                newVersion.incrementSourceCount()
-                assert newVersion.trailingRevision().getVersion(
-                    ) == recipeObj.version
-
                 for pathId, path, fileId, fileVer in oldTrove.getNewFileList():
                     oldFiles[path] = (pathId, path, fileId, fileVer)
-            else:
-                newVersion = _createVersion(package, self.helper,
-                        recipeObj.version)
-
-            newTrove = Trove(package.name, newVersion, deps.Flavor())
+            newTrove = Trove(package.name, package.nextVersion, deps.Flavor())
 
             # Add upstream files to new trove. Recycle pathids from the old
             # version.
@@ -275,7 +264,7 @@ class ShadowBatch(object):
                     autoContents = filecontents.FromFilesystem(snapshot)
                     filesToAdd[autoFileId] = (autoObj, autoContents, False)
                     newTrove.addFile(autoPathId, autoPath,
-                        newVersion, autoFileId)
+                        newTrove.getVersion(), autoFileId)
 
             # If the old and new troves are identical, just use the old one.
             if oldTrove and _sourcesIdentical(
@@ -304,8 +293,8 @@ class ShadowBatch(object):
             changeSet.newTrove(newTroveCs)
             doCommit = True
 
-            package.setDownstreamVersion(newVersion)
-            log.debug('Created %s=%s', newTrove.getName(), newVersion)
+            package.setDownstreamVersion(newTrove.getVersion())
+            log.debug('Created %s=%s', newTrove.getName(), newTrove.getVersion())
 
         if doCommit:
             cook.signAbsoluteChangesetByConfig(changeSet, self.helper.cfg)
@@ -431,31 +420,6 @@ def _loadRecipe(helper, package, recipePath):
 
     # Just the class is enough for everything else
     return recipeClass
-
-
-def _maxVersion(versions):
-    """
-    Get the highest-numbered from a set of source C{versions}.
-
-    Uses timestamps to figure out the latest upstream version, then
-    compares source counts to compare within all versions with that
-    upstream version. This way, versions with oddly-ordered timestamps
-    don't throw off the new version generator.
-
-    For example, with these versions and timestamps:
-    /abcd-1     10:00
-    /efgh-1     15:00
-    /efgh-2     13:00
-
-    /efgh-2 would be picked as the maximum version, even though it
-    is older than /efgh-1.
-    """
-    maxRevision = max(versions).trailingRevision().version
-    candidates = [x for x in versions
-            if x.trailingRevision().version == maxRevision]
-    maxSourceCount = max(x.trailingRevision().sourceCount for x in candidates)
-    return max(x for x in candidates
-            if x.trailingRevision().sourceCount == maxSourceCount)
 
 
 def _getSnapshot(helper, source, tempDir):

@@ -48,6 +48,7 @@ class BobPackage(object):
         self.downstreamVersion = None
         self.flavors = set()
         self.mangleData = None
+        self.nextVersion = None
         self.trove = None
 
         # The 'after' target option acts as a list of additional children to
