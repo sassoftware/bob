@@ -430,7 +430,8 @@ def _getSnapshot(helper, source, tempDir):
     that should be deleted after use.
     """
     if not hasattr(source, 'createSnapshot'):
-        fullPath = source.fetch()
+        fullPath = source.fetch(
+                refreshFilter=lambda x: helper.plan.refreshSources)
         if not source.ephemeral:
             return fullPath
         name = os.path.basename(fullPath)
