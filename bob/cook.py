@@ -21,6 +21,7 @@ Build, commit, and process troves in "batches"
 
 import logging
 import os
+import signal
 import sys
 import time
 
@@ -44,8 +45,26 @@ def stopJob(batch, signum, _):
     and exit.
     '''
 
+    # For some reason stopping the job tends to hang, especially when
+    # terminated by jenkins, and it gets worse when we get stuck connecting to
+    # the rmake server because it also makes the rmake server hang. So spawn a
+    # helper process that will SIGKILL us if we take too long.
+    parent = os.getpid()
+    pid = os.fork()
+    if not pid:
+        try:
+            signal.signal(signal.SIGTERM, signal.SIG_DFL)
+            time.sleep(10)
+            log.error("Timed out waiting for job to stop, terminating "
+                    "with extreme prejudice")
+            os.kill(parent, signal.SIGKILL)
+        finally:
+            os._exit(0)
+
     log.error('Caught signal %d during build; stopping job', signum)
     batch.stop()
+    os.kill(pid, signal.SIGTERM)
+    os.waitpid(pid, 0)
     sys.exit('Signalled stop')
 
 
