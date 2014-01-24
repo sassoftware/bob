@@ -20,6 +20,7 @@ import os
 import subprocess
 import urllib
 import urllib2
+from conary.lib.util import copyfileobj
 
 from bob import scm
 
@@ -61,7 +62,6 @@ class WmsRepository(scm.ScmRepository):
 
     def checkout(self, workDir, subtree):
         archive = self._archive()
-        prefix = archive.rsplit('.', 1)[0]
         f = urllib2.urlopen(self.repos + '/archive/'
                     + self.revision + '/' + archive,
                 data=urllib.urlencode([('subtree', subtree)]))
@@ -76,6 +76,7 @@ class WmsRepository(scm.ScmRepository):
         tar.wait()
         if tar.returncode:
             raise RuntimeError("tar exited with status %s" % tar.returncode)
+        prefix = archive.rsplit('.', 1)[0]
         return prefix
 
     def getAction(self, extra=''):
@@ -84,3 +85,13 @@ class WmsRepository(scm.ScmRepository):
         f.close()
         return 'addGitSnapshot(%r, branch=%r, tag=%r%s)' % (
                 url, self.branch, self.getShortRev(), extra)
+
+    def fetchArchive(self, conarySource, snapPath):
+        archive = urllib.quote(os.path.basename(snapPath))
+        url = (self.repos + '/archive/'
+                + urllib.quote(self.revision) + '/' + archive)
+        log.info("Downloading snapshot: %s", url)
+        f_in = urllib2.urlopen(url)
+        with open(snapPath, 'w') as f_out:
+            copyfileobj(f_in, f_out)
+        f_in.close()

@@ -255,3 +255,15 @@ class BobPackage(object):
         if not self.mangleData:
             raise ValueError('Mangle data not set')
         return self.mangleData
+
+    def getSCM(self):
+        if not self.mangleData:
+            raise ValueError('Mangle data not set')
+        name = self.targetConfig.scm
+        if not name:
+            return None
+        scmData = self.mangleData['scm']
+        if name not in scmData:
+            raise RuntimeError("Trove %s references undefined "
+                    "SCM repository %s" % (self.getPackageName(), name))
+        return scmData[name]

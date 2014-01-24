@@ -234,7 +234,7 @@ class ShadowBatch(object):
                 needFiles = set(recipeFiles) - newFiles
                 for autoPath in needFiles:
                     source = recipeFiles[autoPath]
-                    if (autoPath in oldFiles and not
+                    if False and (autoPath in oldFiles and not # XXX FIXME
                             self.helper.plan.refreshSources):
                         # File exists in old version.
                         pathId, path, fileId, fileVer = oldFiles[autoPath]
@@ -253,7 +253,8 @@ class ShadowBatch(object):
                     else:
                         tempDir = tempfile.mkdtemp()
                         deleteDirs.add(tempDir)
-                    snapshot = _getSnapshot(self.helper, source, tempDir)
+                    snapshot = _getSnapshot(self.helper, package, source,
+                            tempDir)
 
                     autoPathId = hashlib.md5(autoPath).digest()
                     autoObj = FileFromFilesystem(snapshot, autoPathId)
@@ -422,7 +423,7 @@ def _loadRecipe(helper, package, recipePath):
     return recipeClass
 
 
-def _getSnapshot(helper, source, tempDir):
+def _getSnapshot(helper, package, source, tempDir):
     """
     Create a snapshot of a revision-control source in a temporary location.
 
@@ -440,17 +441,25 @@ def _getSnapshot(helper, source, tempDir):
         return newName
 
     fullPath = source.getFilename()
-    reposPath = '/'.join(fullPath.split('/')[:-1] + [ source.name ])
-    repositoryDir = source.recipe.laReposCache.getCachePath(source.recipe.name, reposPath)
-
-    if not os.path.exists(repositoryDir):
-        mkdirChain(os.path.dirname(repositoryDir))
-        source.createArchive(repositoryDir)
-    else:
-        source.updateArchive(repositoryDir)
-
     snapPath = os.path.join(tempDir, os.path.basename(fullPath))
-    source.createSnapshot(repositoryDir, snapPath)
+    scm = package.getSCM()
+    fetched = False
+    if scm:
+        try:
+            scm.fetchArchive(source, snapPath)
+            fetched = True
+        except NotImplementedError:
+            pass
+    if not fetched:
+        reposPath = '/'.join(fullPath.split('/')[:-1] + [ source.name ])
+        repositoryDir = source.recipe.laReposCache.getCachePath(
+                source.recipe.name, reposPath)
+        if not os.path.exists(repositoryDir):
+            mkdirChain(os.path.dirname(repositoryDir))
+            source.createArchive(repositoryDir)
+        else:
+            source.updateArchive(repositoryDir)
+        source.createSnapshot(repositoryDir, snapPath)
 
     if fullPath.endswith('.bz2') and not checkBZ2(snapPath):
         raise RuntimeError("Autosource file %r is corrupt!" % (snapPath,))

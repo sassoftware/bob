@@ -66,6 +66,9 @@ class ScmRepository(object):
         """Return a Conary source action to unpack this repository"""
         raise NotImplementedError
 
+    def fetchArchive(self, conarySource, snapPath):
+        raise NotImplementedError
+
     def setFromTip(self):
         self.revision = self.getTip()
         self.revIsExact = True

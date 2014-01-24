@@ -202,6 +202,7 @@ class BobMain(object):
             pass
 
         cacheDir = os.path.join(self._helper.cfg.lookaside, self.bobCache)
+        cny_util.mkdirChain(cacheDir)
         self._scm = {}
         for name, (kind, uri, rev) in self._cfg.getRepositories(
                 self._macros).iteritems():

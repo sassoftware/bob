@@ -96,14 +96,8 @@ def mSource(package, recipe):
     '''
     Modify source action calls to use the selected revision.
     '''
-
-    name = package.getTargetConfig().scm
+    repo = package.getSCM()
     data = package.getMangleData()
-    scmData = data['scm']
-    if not scmData.has_key(name):
-        logging.warning('Trove %s references undefined SCM repository %s',
-            package.getPackageName(), name)
-    repo = scmData[name]
     extra = ''
     if data['plan'].ephemeral and not repo.isLocal():
         extra += ', ephemeral=True'
