@@ -30,8 +30,6 @@ from rmake.build import buildcfg
 
 from bob import config
 from bob import coverage
-from bob import git
-from bob import hg
 from bob import flavors
 from bob import recurse
 from bob import shadow
@@ -39,6 +37,9 @@ from bob import util
 from bob import version
 from bob.errors import JobFailedError, TestFailureError
 from bob.macro import substILP, substResolveTroves, substStringList
+from bob.scm import git
+from bob.scm import hg
+from bob.scm import wms
 from bob.test import TestSuite
 from bob.trove import BobPackage
 from bob.util import ClientHelper, pushStopHandler, reportCommitMap
@@ -186,13 +187,19 @@ class BobMain(object):
         '''
         Obtain revisions of hg repositories
         '''
+        tips = {}
         try:
-            tips = {}
             for line in open('tips'):
                 _uri, _tip = line.split(' ', 1)
                 tips[_uri] = _tip.strip()
         except IOError:
-            tips = None
+            pass
+        try:
+            for line in open('revision.txt'):
+                _tip, _uri = line.split(' ', 1)
+                tips[_uri.strip()] = _tip
+        except IOError:
+            pass
 
         cacheDir = os.path.join(self._helper.cfg.lookaside, self.bobCache)
         self._scm = {}
@@ -207,12 +214,21 @@ class BobMain(object):
                 else:
                     path, branch = uri, 'master'
                 repo = git.GitRepository(cacheDir, path, branch)
+            elif kind == 'wms':
+                if not rev:
+                    raise RuntimeError("SCM statements of type 'wms' require "
+                            "a branch argument")
+                repo = wms.WmsRepository(self._cfg.wmsBase,
+                        path=uri, branch=rev)
+                # It's a branch, not a hard revision. Still need to consult the
+                # revision.txt file.
+                rev = None
             else:
                 raise TypeError("Invalid SCM type %r in target %r"
                         % (kind, name))
             if rev:
                 repo.revision = rev
-            elif tips is not None:
+            elif tips:
                 rev = tips.get(uri)
                 if not rev:
                     # Try the bare SCM alias
@@ -221,6 +237,7 @@ class BobMain(object):
                     log.debug('Selected for %s revision %s (from tips)', uri,
                             rev)
                     repo.revision = rev
+                    repo.revIsExact = True
                 else:
                     raise RuntimeError('tips file exists, but does not '
                             'contain repository %s or alias %s' % (uri, name))
@@ -228,14 +245,12 @@ class BobMain(object):
                 if not self._cfg.depMode:
                     log.warning('No explicit revision given for repository %s, '
                             'using latest', uri)
-                repo.revision = repo.getTip()
+                repo.setFromTip()
             repo.updateCache()
-            if len(repo.revision) == 40:
-                repo.revision = repo.revision[:12]
             self._scm[name] = repo
             if not self._cfg.depMode:
                 log.info("For repository %s, using %s revision %s", name, uri,
-                        repo.revision)
+                        repo.getShortRev())
 
     def _registerCommand(self, *args, **kwargs):
         'Fake rMake hook'

@@ -22,6 +22,7 @@ from conary.lib import util
 class ScmRepository(object):
 
     revision = None
+    revIsExact = False
 
     def isLocal(self):
         """Returns True if the repository is on the local filesystem"""
@@ -41,15 +42,15 @@ class ScmRepository(object):
         # Update the local repository cache.
         workDir = tempfile.mkdtemp()
         try:
-            self.checkout(workDir)
+            prefix = self.checkout(workDir, subpath) or ''
             # Read in all the files for the requested subpath
-            subDir = os.path.join(workDir, subpath)
+            subDir = os.path.join(workDir, prefix, subpath)
             if not os.path.isdir(subDir):
                 raise RuntimeError(
                         "sourceTree %s does not exist or is not a directory" %
                         subpath)
             files = {}
-            for name in os.listdir(os.path.join(workDir, subpath)):
+            for name in os.listdir(subDir):
                 filePath = os.path.realpath(os.path.join(subDir, name))
                 if not filePath.startswith(workDir):
                     raise RuntimeError(
@@ -64,3 +65,13 @@ class ScmRepository(object):
     def getAction(self, extra=''):
         """Return a Conary source action to unpack this repository"""
         raise NotImplementedError
+
+    def setFromTip(self):
+        self.revision = self.getTip()
+        self.revIsExact = True
+
+    def getShortRev(self):
+        if self.revIsExact:
+            return self.revision[:12]
+        else:
+            return self.revision

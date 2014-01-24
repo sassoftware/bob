@@ -16,7 +16,7 @@
 
 
 '''
-Helper functions for dealing with mercurial (hg) repositories.
+Helper functions for dealing with git repositories.
 '''
 
 import logging
@@ -25,7 +25,7 @@ import subprocess
 
 from bob import scm
 
-log = logging.getLogger('bob.hg')
+log = logging.getLogger('bob.scm')
 
 
 class GitRepository(scm.ScmRepository):
@@ -63,9 +63,9 @@ class GitRepository(scm.ScmRepository):
         subprocess.check_call(['git', 'fetch', '-q',
             self.uri, '+%s:%s' % (self.branch, self.branch)], cwd=self.repoDir)
 
-    def checkout(self, workDir):
+    def checkout(self, workDir, subtree):
         p1 = subprocess.Popen(['git', 'archive', '--format=tar',
-            self.revision], stdout=subprocess.PIPE, cwd=self.repoDir)
+            self.revision, subtree], stdout=subprocess.PIPE, cwd=self.repoDir)
         p2 = subprocess.Popen(['tar', '-x'], stdin=p1.stdout, cwd=workDir)
         p1.stdout.close()  # remove ourselves from between git and tar
         p1.wait()
@@ -77,4 +77,4 @@ class GitRepository(scm.ScmRepository):
 
     def getAction(self, extra=''):
         return 'addGitSnapshot(%r, branch=%r, tag=%r%s)' % (
-                self.uri, self.branch, self.revision, extra)
+                self.uri, self.branch, self.getShortRev(), extra)

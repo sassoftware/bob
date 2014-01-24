@@ -28,7 +28,7 @@ from mercurial.node import short
 
 from bob import scm
 
-log = logging.getLogger('bob.hg')
+log = logging.getLogger('bob.scm')
 
 
 class HgRepository(scm.ScmRepository):
@@ -59,10 +59,11 @@ class HgRepository(scm.ScmRepository):
             subprocess.check_call(['hg', 'init'], cwd=self.repoDir)
         subprocess.check_call(['hg', 'pull', '-qf', self.uri], cwd=self.repoDir)
 
-    def checkout(self, workDir):
+    def checkout(self, workDir, subtree):
         subprocess.check_call(['hg', 'archive', '--type=files',
-            '--rev', self.revision, workDir], cwd=self.repoDir)
+            '--rev', self.revision, '--include', subtree,
+            workDir], cwd=self.repoDir)
 
     def getAction(self, extra=''):
-        return 'addMercurialSnapshot(%r, tag=%r%s)' % (self.uri, self.revision,
-                extra)
+        return 'addMercurialSnapshot(%r, tag=%r%s)' % (self.uri,
+                self.getShortRev(), extra)
