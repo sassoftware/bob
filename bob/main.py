@@ -196,8 +196,8 @@ class BobMain(object):
             pass
         try:
             for line in open('revision.txt'):
-                _tip, _uri = line.split(' ', 1)
-                tips[_uri.strip()] = _tip
+                _uri, _branch, _tip = line.split(' ', 2)
+                tips[_uri] = (_branch, _tip.strip())
         except IOError:
             pass
 
@@ -235,6 +235,9 @@ class BobMain(object):
                     # Try the bare SCM alias
                     rev = tips.get(name)
                 if rev:
+                    if kind == 'wms':
+                        branch, rev = rev
+                        repo.branch = branch
                     log.debug('Selected for %s revision %s (from tips)', uri,
                             rev)
                     repo.revision = rev

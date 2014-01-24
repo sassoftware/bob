@@ -29,14 +29,13 @@ log = logging.getLogger('bob.scm')
 
 class WmsRepository(scm.ScmRepository):
 
-    def __init__(self, base, path, branch):
+    def __init__(self, base, path, branch=None):
         self.base = base
         self.path = path
         self.branch = branch
 
         silo, subpath = path.split('/', 1)
         self.pathq = self._quote(silo) + '/' + self._quote(subpath)
-        self.branchq = self._quote(branch)
         self.repos = self.base + '/api/repos/' + self.pathq
 
     @staticmethod
@@ -44,7 +43,8 @@ class WmsRepository(scm.ScmRepository):
         return urllib.quote(foo).replace('/', ',')
 
     def getTip(self):
-        f = urllib2.urlopen(self.repos + '/poll/' + self.branchq)
+        branch = self.branch or 'HEAD'
+        f = urllib2.urlopen(self.repos + '/poll/' + self._quote(branch))
         result = f.readlines()
         f.close()
         assert len(result) == 1
