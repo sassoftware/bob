@@ -42,15 +42,24 @@ class WmsRepository(scm.ScmRepository):
     def _quote(foo):
         return urllib.quote(foo).replace('/', ',')
 
-    def getTip(self):
+    def _getTip(self):
         branch = self.branch or 'HEAD'
         f = urllib2.urlopen(self.repos + '/poll/' + self._quote(branch))
         result = f.readlines()
         f.close()
         assert len(result) == 1
-        rev = result[0].split()[0]
-        assert len(rev) == 40
-        return rev
+        path, branch, tip = result[0].split()
+        assert len(tip) == 40
+        return branch, tip
+
+    def getTip(self):
+        return self._getTip()[1]
+
+    def setFromTip(self):
+        branch, tip = self._getTip()
+        self.branch = branch
+        self.revision = tip
+        self.revIsExact = True
 
     def updateCache(self):
         pass
