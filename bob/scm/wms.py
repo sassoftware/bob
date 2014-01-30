@@ -96,6 +96,8 @@ class WmsRepository(scm.ScmRepository):
                 url, self.branch, self.getShortRev(), extra)
 
     def fetchArchive(self, conarySource, snapPath):
+        if os.path.exists(snapPath):
+            return
         archive = urllib.quote(os.path.basename(snapPath))
         url = (self.repos + '/archive/'
                 + urllib.quote(self.revision) + '/' + archive)
