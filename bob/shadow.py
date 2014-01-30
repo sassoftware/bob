@@ -234,8 +234,9 @@ class ShadowBatch(object):
                 needFiles = set(recipeFiles) - newFiles
                 for autoPath in needFiles:
                     source = recipeFiles[autoPath]
-                    if (autoPath in oldFiles and not
-                            self.helper.plan.refreshSources):
+                    if (autoPath in oldFiles
+                            and not self.helper.plan.refreshSources
+                            and not source.ephemeral):
                         # File exists in old version.
                         pathId, path, fileId, fileVer = oldFiles[autoPath]
                         newTrove.addFile(pathId, path, fileVer, fileId)
@@ -256,16 +257,17 @@ class ShadowBatch(object):
                     snapshot = _getSnapshot(self.helper, package, source,
                             tempDir)
 
-                    autoPathId = hashlib.md5(autoPath).digest()
-                    autoObj = FileFromFilesystem(snapshot, autoPathId)
-                    autoObj.flags.isAutoSource(set=True)
-                    autoObj.flags.isSource(set=True)
-                    autoFileId = autoObj.fileId()
+                    if not source.ephemeral:
+                        autoPathId = hashlib.md5(autoPath).digest()
+                        autoObj = FileFromFilesystem(snapshot, autoPathId)
+                        autoObj.flags.isAutoSource(set=True)
+                        autoObj.flags.isSource(set=True)
+                        autoFileId = autoObj.fileId()
 
-                    autoContents = filecontents.FromFilesystem(snapshot)
-                    filesToAdd[autoFileId] = (autoObj, autoContents, False)
-                    newTrove.addFile(autoPathId, autoPath,
-                        newTrove.getVersion(), autoFileId)
+                        autoContents = filecontents.FromFilesystem(snapshot)
+                        filesToAdd[autoFileId] = (autoObj, autoContents, False)
+                        newTrove.addFile(autoPathId, autoPath,
+                            newTrove.getVersion(), autoFileId)
 
             # If the old and new troves are identical, just use the old one.
             if oldTrove and _sourcesIdentical(
