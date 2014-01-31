@@ -75,13 +75,13 @@ def analyze_group(recipeObj):
         log.warning("Recipe for %s does not have a "
                 "getAdditionalSearchPath method; cannot analyze "
                 "requirements.", recipeObj.name)
-        return
+        return [], []
     path = recipeObj.getAdditionalSearchPath()
     if not path:
         log.warning("Recipe for %s does not have a "
                 "getAdditionalSearchPath method; cannot analyze "
                 "requirements.", recipeObj.name)
-        return
+        return [], []
     requires = []
     for item in itertools.chain(*path):
         item = item.split('[')[0]
@@ -99,9 +99,15 @@ def analyze_groupset(recipeObj):
         if isinstance(source, groupsetrecipe.GroupSearchSourceTroveSet):
             label = source.searchSource.installLabelPath[0]
             for child in g.getChildren(source):
+                if isinstance(child, groupsetrecipe.GroupSearchPathTroveSet):
+                    log.warning("Bare label %s is used as a search path. "
+                            "Troves found there will not be marked as "
+                            "requirements.", label)
+                    continue
                 if not hasattr(child, 'action'):
                     log.warning("Don't know how to handle node of type '%s'",
                             type(child).__name__)
+                    continue
                 if isinstance(child.action, groupsetrecipe.GroupFindAction):
                     names = child.action.troveSpecs
                 else:
