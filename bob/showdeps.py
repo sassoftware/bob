@@ -16,6 +16,7 @@
 
 import itertools
 import logging
+import multiprocessing
 import optparse
 import os
 import sys
@@ -29,7 +30,7 @@ from conary.lib import util
 log = logging.getLogger('showdeps')
 
 
-def analyze_plan(provides, requires, root, relpath, pluginMgr, recipeDir):
+def analyze_plan(root, pluginMgr, recipeDir, relpath):
     cfg = config.BobConfig()
     path = os.path.join(root, relpath)
     cfg.read(path)
@@ -37,11 +38,13 @@ def analyze_plan(provides, requires, root, relpath, pluginMgr, recipeDir):
 
     # Provide each source that this plan would build
     label = cfg.getTargetLabel()
+    provides = {}
     for target in cfg.target:
         provide = '%s=%s' % (target, label)
         provides.setdefault(provide, set()).add(relpath)
 
     # Require anything mentioned in a resolveTrove
+    requires = {}
     for bucket in cfg.resolveTroves:
         for item in bucket:
             item %= cfg.getMacros()
@@ -68,6 +71,8 @@ def analyze_plan(provides, requires, root, relpath, pluginMgr, recipeDir):
             for name in recipeObj.packages:
                 provide = '%s=%s' % (name, label)
                 provides.setdefault(provide, set()).add(relpath)
+
+    return requires, provides
 
 
 def analyze_group(recipeObj):
@@ -130,16 +135,29 @@ def analyze_groupset(recipeObj):
     return requires, provides
 
 
-def dump_recipes(root, relpath, pluginMgr, recipeDir):
-    log.info("Dumping recipes for %s", relpath)
-    cfg = config.BobConfig()
-    path = os.path.join(root, relpath)
-    cfg.read(path)
-    cfg.dumpRecipes = True
-    cfg.recipeDir = recipeDir
-    bob = bobmain.BobMain(pluginMgr)
-    bob.setPlan(cfg)
-    bob.runDeps()
+def dump_recipes((root, pluginMgr, recipeDir, relpath)):
+    try:
+        log.info("Dumping recipes for %s", relpath)
+        cfg = config.BobConfig()
+        path = os.path.join(root, relpath)
+        cfg.read(path)
+        cfg.dumpRecipes = True
+        cfg.recipeDir = recipeDir
+        bob = bobmain.BobMain(pluginMgr)
+        bob.setPlan(cfg)
+        bob.runDeps()
+        return True
+    except:
+        log.exception("Error parsing file %s:", relpath)
+        return False
+
+
+def _analyze_plan((root, pluginMgr, recipeDir, relpath)):
+    try:
+        return analyze_plan(root, pluginMgr, recipeDir, relpath)
+    except:
+        log.exception("Error parsing file %s:", relpath)
+        return None
 
 
 def dedupe(requirers, edges):
@@ -149,11 +167,10 @@ def dedupe(requirers, edges):
     seen = set()
     while stack:
         parent, path = stack.pop(0)
-        children = edges.get(parent, set())
-        children.discard(seen)
-        seen.update(children)
-        for nuke in children & requirers:
-            requirers.discard(nuke)
+        children = set(edges.get(parent, ()))
+        children -= seen
+        seen |= children
+        requirers -= children
         stack.extend((x, path + '::' + parent) for x in children)
     return requirers
 
@@ -171,6 +188,7 @@ def main(args):
     bobfiles = set()
     pluginMgr = bobmain.getPluginManager()
     recipeDir = tempfile.mkdtemp(prefix='bob-recipes-')
+    pool = multiprocessing.Pool(processes=4)
     try:
         # Collect a list of bob plans
         for root in args:
@@ -186,32 +204,25 @@ def main(args):
 
         # First pass: mangle and dump all the recipes so that loadSuperClass()
         # can work without actually committing anything.
-        for relpath in bobfiles:
-            try:
-                dump_recipes(root, relpath, pluginMgr, recipeDir)
-            except KeyboardInterrupt:
-                raise
-            except:
-                log.exception("Error parsing file %s:", relpath)
-                failed = True
-        if failed:
-            sys.exit(1)
+        ok = pool.map(dump_recipes,
+                [(root, pluginMgr, recipeDir, x) for x in bobfiles])
+        if False in ok:
+            sys.exit("Failed to load recipes")
 
         # Second pass: make provides and requires out of the bob plan, recipe
         # PackageSpecs, and group recipe inputs.
         provides = {}
         requires = {}
-        for relpath in sorted(bobfiles):
-            try:
-                analyze_plan(provides, requires, root, relpath, pluginMgr,
-                        recipeDir)
-            except KeyboardInterrupt:
-                raise
-            except:
-                log.exception("Error parsing file %s:", relpath)
-                failed = True
-        if failed:
-            sys.exit(1)
+        results = pool.map(_analyze_plan,
+                [(root, pluginMgr, recipeDir, x) for x in bobfiles])
+        if None in results:
+            sys.exit("Failed to analyze recipes")
+        for plan_requires, plan_provides in results:
+            for key, value in plan_requires.iteritems():
+                requires.setdefault(key, set()).update(value)
+            for key, value in plan_provides.iteritems():
+                provides.setdefault(key, set()).update(value)
+        pool.close()
     finally:
         util.rmtree(recipeDir)
 
@@ -222,7 +233,7 @@ def main(args):
         for item, providers in provides.iteritems():
             requirers = requires.get(item, set())
             for provider in providers:
-                edges[provider] = set(requirers)
+                edges.setdefault(provider, set()).update(requirers)
 
         # Remove edges that are made entirely redundant by a longer path.
         edges_trimmed = {}
