@@ -22,6 +22,7 @@ import sys
 import tempfile
 from bob import config
 from bob import main as bobmain
+from conary.build import groupsetrecipe
 from conary.lib import log as cny_log
 from conary.lib import util
 
@@ -53,27 +54,74 @@ def analyze_plan(provides, requires, root, relpath, pluginMgr, recipeDir):
     targets, batch = bob.runDeps()
     for package, (_, recipeObj) in zip(batch.packages, batch.recipes):
         if package.name.startswith('group-'):
-            if not hasattr(recipeObj, 'getAdditionalSearchPath'):
-                log.warning("Recipe for %s does not have a "
-                        "getAdditionalSearchPath method; cannot analyze "
-                        "requirements.", package.name)
-                continue
-            path = recipeObj.getAdditionalSearchPath()
-            if not path:
-                log.warning("Recipe for %s does not have a "
-                        "getAdditionalSearchPath method; cannot analyze "
-                        "requirements.", package.name)
-                continue
-            for item in itertools.chain(*path):
-                item = item.split('[')[0]
-                requires.setdefault(item, set()).add(relpath)
-            for name in recipeObj.groups:
+            if hasattr(recipeObj, 'g'):
+                group_req, group_prov = analyze_groupset(recipeObj)
+            else:
+                group_req, group_prov = analyze_group(recipeObj)
+            for require in group_req:
+                requires.setdefault(require, set()).add(relpath)
+            for name in group_prov:
                 provide = '%s=%s' % (name, label)
                 provides.setdefault(provide, set()).add(relpath)
+
         elif hasattr(recipeObj, 'packages'):
             for name in recipeObj.packages:
                 provide = '%s=%s' % (name, label)
                 provides.setdefault(provide, set()).add(relpath)
+
+
+def analyze_group(recipeObj):
+    if not hasattr(recipeObj, 'getAdditionalSearchPath'):
+        log.warning("Recipe for %s does not have a "
+                "getAdditionalSearchPath method; cannot analyze "
+                "requirements.", recipeObj.name)
+        return
+    path = recipeObj.getAdditionalSearchPath()
+    if not path:
+        log.warning("Recipe for %s does not have a "
+                "getAdditionalSearchPath method; cannot analyze "
+                "requirements.", recipeObj.name)
+        return
+    requires = []
+    for item in itertools.chain(*path):
+        item = item.split('[')[0]
+        requires.append(item)
+    provides = []
+    for name in recipeObj.groups:
+        provides.append(name)
+    return requires, provides
+
+
+def analyze_groupset(recipeObj):
+    g = recipeObj.g
+    requires = []
+    for source in g.getRoots():
+        if isinstance(source, groupsetrecipe.GroupSearchSourceTroveSet):
+            label = source.searchSource.installLabelPath[0]
+            for child in g.getChildren(source):
+                if not hasattr(child, 'action'):
+                    log.warning("Don't know how to handle node of type '%s'",
+                            type(child).__name__)
+                if isinstance(child.action, groupsetrecipe.GroupFindAction):
+                    names = child.action.troveSpecs
+                else:
+                    log.warning("Don't know how to handle action of type '%s'",
+                            type(child.action).__name__)
+                    continue
+                for name in names:
+                    name = name.split('[')[0]
+                    if '=' not in name:
+                        name = '%s=%s' % (name, label)
+                    requires.append(name)
+        else:
+            log.warning("Don't know how to handle source of type '%s'",
+                    type(source).__name__)
+    provides = []
+    for node in g.iterNodes():
+        if isinstance(getattr(node, 'action', None),
+                groupsetrecipe.CreateGroupAction):
+            provides.append(node.action.name)
+    return requires, provides
 
 
 def dump_recipes(root, relpath, pluginMgr, recipeDir):
