@@ -40,7 +40,7 @@ class WmsRepository(scm.ScmRepository):
 
     @staticmethod
     def _quote(foo):
-        return urllib.quote(foo).replace('/', ',')
+        return urllib.quote(foo).replace('/', ':')
 
     def _getTip(self):
         branch = self.branch or 'HEAD'
