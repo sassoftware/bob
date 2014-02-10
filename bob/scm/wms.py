@@ -69,11 +69,11 @@ class WmsRepository(scm.ScmRepository):
                 + '-' + self.getShortRev()
                 + '.tar' + compress)
 
-    def checkout(self, workDir, subtree):
+    def checkout(self, workDir, subtree=None):
         archive = self._archive()
+        data = urllib.urlencode([('subtree', subtree)]) if subtree else None
         f = urllib2.urlopen(self.repos + '/archive/'
-                    + self.revision + '/' + archive,
-                data=urllib.urlencode([('subtree', subtree)]))
+                    + self.revision + '/' + archive, data=data)
         tar = subprocess.Popen(['tar', '-x'], stdin=subprocess.PIPE,
                 cwd=workDir)
         while True:
