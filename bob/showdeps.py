@@ -18,6 +18,7 @@ import itertools
 import logging
 import multiprocessing
 import optparse
+import pprint
 import os
 import sys
 import tempfile
@@ -177,31 +178,68 @@ def dedupe(requirers, edges):
 
 def main(args):
     cny_log.setupLogging(consoleLevel=logging.INFO)
-    parser = optparse.OptionParser(usage='%prog {--graph,--required-hosts} root')
+    parser = optparse.OptionParser(usage='%prog {--graph,--required-hosts,--scm} root')
     parser.add_option('--graph', action='store_true')
     parser.add_option('--required-hosts', action='store_true')
+    parser.add_option('--scm', action='store_true')
     options, args = parser.parse_args(args)
-    if not args or not (options.graph or options.required_hosts):
+    if len(args) != 1 or not (options.graph or options.required_hosts or options.scm):
         parser.error('wrong arguments')
+    root = os.path.abspath(args[0])
 
-    failed = False
+    # Collect a list of bob plans
     bobfiles = set()
-    pluginMgr = bobmain.getPluginManager()
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames.sort()
+        filenames.sort()
+        reldir = dirpath[len(root)+1:]
+        for filename in filenames:
+            if filename.endswith('.bob'):
+                relpath = os.path.join(reldir, filename)
+                bobfiles.add(relpath)
+
+    if options.scm:
+        watchMap = {}
+        for plan in bobfiles:
+            cfg = config.openPlan(os.path.join(root, plan))
+            aliases = {}
+            watchPaths = {}
+            for name, value in cfg.scm.items():
+                name %= cfg.macros
+                value %= cfg.macros
+                kind, url = value.split()[:2]
+                if kind != 'wms':
+                    continue
+                aliases[name] = url
+            for target in cfg.target:
+                sec = cfg.getSection('target:' + target)
+                if sec.sourceTree:
+                    name, path = sec.sourceTree.split(None, 1)
+                    name %= cfg.macros
+                    path %= cfg.macros
+                    watchPaths.setdefault(name, set()).add(path)
+                if sec.scm:
+                    name = sec.scm % cfg.macros
+                    watchPaths.setdefault(name, set()).add('')
+            for alias, paths in watchPaths.items():
+                if alias not in aliases:
+                    continue
+                url = aliases[alias]
+                if '' in paths:
+                    paths = set([''])
+                watchList = watchMap.setdefault(plan, set())
+                for path in paths:
+                    watchList.add((url, path))
+        print "# Map of plan files to SCM paths they consume"
+        print "scm_deps = ",
+        pprint.pprint(watchMap)
+        sys.exit(0)
+
+
     recipeDir = tempfile.mkdtemp(prefix='bob-recipes-')
+    pluginMgr = bobmain.getPluginManager()
     pool = multiprocessing.Pool(processes=4)
     try:
-        # Collect a list of bob plans
-        for root in args:
-            root = os.path.abspath(root)
-            for dirpath, dirnames, filenames in os.walk(root):
-                dirnames.sort()
-                filenames.sort()
-                reldir = dirpath[len(root)+1:]
-                for filename in filenames:
-                    if filename.endswith('.bob'):
-                        relpath = os.path.join(reldir, filename)
-                        bobfiles.add(relpath)
-
         # First pass: mangle and dump all the recipes so that loadSuperClass()
         # can work without actually committing anything.
         ok = pool.map(dump_recipes,
@@ -240,7 +278,6 @@ def main(args):
         for provider, requirers in edges.iteritems():
             requirers = dedupe(requirers, edges)
             edges_trimmed[provider] = requirers
-        import pprint
         print '# map of providers to the set of requirers'
         print 'dep_graph = ',
         pprint.pprint(edges_trimmed)
