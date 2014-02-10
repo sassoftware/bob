@@ -233,8 +233,9 @@ def main(args):
         print "# Map of plan files to SCM paths they consume"
         print "scm_deps = ",
         pprint.pprint(watchMap)
-        sys.exit(0)
 
+    if not options.graph and not options.required_hosts:
+        sys.exit(0)
 
     recipeDir = tempfile.mkdtemp(prefix='bob-recipes-')
     pluginMgr = bobmain.getPluginManager()
