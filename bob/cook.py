@@ -104,6 +104,10 @@ class Batch(object):
 
         @type bobTrove: L{bob.trove.BobPackage}
         '''
+        if bobTrove.getPackageName() == 'product-definition':
+            log.info("Package %s=%s will not be built", bobTrove.getName(),
+                    bobTrove.getDownstreamVersion())
+            return
 
         _macros = Macros(self._helper.plan.macros)
         macros = {}
