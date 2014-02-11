@@ -17,7 +17,7 @@
 
 class Bob(BuildPackageRecipe):
     name = 'bob'
-    version = '4.0'
+    version = '4.2'
 
     buildRequires = [
         'python-devel',
@@ -29,6 +29,7 @@ class Bob(BuildPackageRecipe):
     def setup(r):
         r.macros.major = '.'.join(r.version.replace('_', '.').split('.')[:2])
         env = 'VERSION=%(version)s MAJOR=%(major)s'
-        r.addMercurialSnapshot()
+        r.addMercurialSnapshot('/home/mithar/code/infra/bob-4')
         r.Make(env)
         r.MakeInstall(env)
+        r.ComponentSpec('bin', '%(bindir)s/bob(-[^0-9.]+)?$')

@@ -36,6 +36,10 @@ install: all
 	rm -rf $(DESTDIR)$(sitepkg)/$(eggname)
 	$(PYTHON) -measy_install -m -d $(DESTDIR)$(sitepkg) -s $(DESTDIR)$(bindir) dist/$(eggname)
 	$(PYTHON) -mcompileall -f -d $(sitepkg)/$(eggname) $(DESTDIR)$(sitepkg)/$(eggname)
+	for x in $(DESTDIR)$(bindir)/*; do \
+		mv $$x $$x-$(VERSION); \
+		ln -sfn $$(basename $$x)-$(VERSION) $$x; \
+	done
 
 clean:
 	@find bob -name \*.pyc -delete
