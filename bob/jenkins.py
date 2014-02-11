@@ -25,7 +25,7 @@ from bob import main as bob_main
 from bob.scm import wms
 
 
-def main(args):
+def main(args=sys.argv[1:]):
     parser = optparse.OptionParser()
     parser.add_option('--base-uri')
     parser.add_option('--repo')

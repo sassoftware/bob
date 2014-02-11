@@ -176,7 +176,7 @@ def dedupe(requirers, edges):
     return requirers
 
 
-def main(args):
+def main(args=sys.argv[1:]):
     cny_log.setupLogging(consoleLevel=logging.INFO)
     parser = optparse.OptionParser(usage='%prog {--graph,--required-hosts,--scm} root')
     parser.add_option('--graph', action='store_true')

@@ -23,7 +23,7 @@ VERSION = '4.2'
 
 with open('bob/version.py', 'w') as f:
     print >> f, "version = %r" % VERSION
-    print >> f, "changeset = %r" % os.popen('./scripts/hg-version.sh').read().strip()
+    print >> f, "revision = %r" % os.popen('./scripts/hg-version.sh').read().strip()
 
 setup(name='bob',
       version=VERSION,

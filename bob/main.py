@@ -411,7 +411,7 @@ def mainFromPlan(plan):
     return _main(plan)
 
 
-def main(args):
+def main(args=sys.argv[1:]):
     banner()
 
     parser = optparse.OptionParser(
@@ -464,4 +464,4 @@ The complete related traceback has been saved as %(stackfile)s
 
 
 if __name__ == '__main__':
-    sys.exit(main(sys.argv[1:]))
+    sys.exit(main())
