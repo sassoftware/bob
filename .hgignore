@@ -2,9 +2,6 @@
 ^.(pydev)?project$
 ^[^/]+\.(bob|ccs)$
 ^bob/version.py$
-^bin/setup.py$
-^bin/bob$
-^bin/bob-deps$
-^bin/bob-jenkins$
-^build/
+build/
+dist/
 output/

@@ -16,15 +16,23 @@
 #
 
 
-import os, sys
+import os
+from setuptools import setup, find_packages
 
-# this lets us run bin/bob from a checkout
-basePath = os.path.join(os.path.dirname(sys.argv[0]), '..')
-if os.path.exists(os.path.join(basePath, 'bob', '__init__.py')):
-        sys.path.insert(0, basePath)
+VERSION = '4.2'
 
-from pkg_resources import require
-require("bob==@VERSION@")
+with open('bob/version.py', 'w') as f:
+    print >> f, "version = %r" % VERSION
+    print >> f, "changeset = %r" % os.popen('./scripts/hg-version.sh').read().strip()
 
-from bob import main
-sys.exit(main.main(sys.argv[1:]))
+setup(name='bob',
+      version=VERSION,
+      platforms='any',
+      packages=find_packages(),
+      entry_points="""\
+      [console_scripts]
+      bob = bob.main:main
+      bob-deps = bob.showdeps:main
+      bob-jenkins = bob.jenkins:main
+      """,
+)

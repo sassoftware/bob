@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/bin/bash
 #
 # Copyright (c) SAS Institute Inc.
 #
@@ -16,15 +16,24 @@
 #
 
 
-import os, sys
-
-# this lets us run bin/bob from a checkout
-basePath = os.path.join(os.path.dirname(sys.argv[0]), '..')
-if os.path.exists(os.path.join(basePath, 'bob', '__init__.py')):
-        sys.path.insert(0, basePath)
-
-from pkg_resources import require
-require("bob==@VERSION@")
-
-from bob import jenkins
-sys.exit(jenkins.main(sys.argv[1:]))
+top=$(dirname $0)/..
+if [[ -x /usr/bin/hg && -d "$top/.hg" ]]
+then
+    hg id -i
+elif [[ -x /usr/bin/git && -d "$top/.git" ]]
+then
+    rev=$(git rev-parse --short=12 HEAD)
+    if ! git diff-index --quiet HEAD
+    then
+        rev="${rev}+"
+    fi
+    echo "$rev"
+elif [[ -f "$top/.hg_archival.txt" ]]
+then
+    grep node $top/.hg_archival.txt |cut -d' ' -f 2 |head -c 12
+    echo
+elif grep -qv '$Format' "$top/.commit_id.txt"
+then
+    head -c 12 "$top/.commit_id.txt"
+    echo
+fi
