@@ -28,8 +28,7 @@ class Bob(BuildPackageRecipe):
 
     def setup(r):
         r.macros.major = '.'.join(r.version.replace('_', '.').split('.')[:2])
-        env = 'VERSION=%(version)s MAJOR=%(major)s'
         r.addMercurialSnapshot('/home/mithar/code/infra/bob-4')
-        r.Make(env)
-        r.MakeInstall(env)
+        r.Make()
+        r.MakeInstall()
         r.ComponentSpec('bin', '%(bindir)s/bob(-[^0-9.]+)?$')
