@@ -37,6 +37,7 @@ from bob import util
 from bob import version
 from bob.errors import JobFailedError, TestFailureError
 from bob.macro import substILP, substResolveTroves, substStringList
+from bob.rev_file import RevisionFile
 from bob.scm import git
 from bob.scm import hg
 from bob.scm import wms
@@ -187,19 +188,7 @@ class BobMain(object):
         '''
         Obtain revisions of hg repositories
         '''
-        tips = {}
-        try:
-            for line in open('tips'):
-                _uri, _tip = line.split(' ', 1)
-                tips[_uri] = _tip.strip()
-        except IOError:
-            pass
-        try:
-            for line in open('revision.txt'):
-                _uri, _branch, _tip = line.split(' ', 2)
-                tips[_uri] = (_branch, _tip.strip())
-        except IOError:
-            pass
+        rf = RevisionFile()
 
         cacheDir = os.path.join(self._helper.cfg.lookaside, self.bobCache)
         cny_util.mkdirChain(cacheDir)
@@ -229,22 +218,22 @@ class BobMain(object):
                         % (kind, name))
             if rev:
                 repo.revision = rev
-            elif tips:
-                rev = tips.get(uri)
+            elif rf.filename:
+                rev = rf.revs.get(uri)
                 if not rev:
                     # Try the bare SCM alias
-                    rev = tips.get(name)
+                    rev = rf.revs.get(name)
                 if rev:
-                    if kind == 'wms':
-                        branch, rev = rev
-                        repo.branch = branch
-                    log.debug('Selected for %s revision %s (from tips)', uri,
-                            rev)
-                    repo.revision = rev
-                    repo.revIsExact = True
+                    desc = rev['id']
+                    if rev.get('branch'):
+                        desc += ' on branch ' + rev['branch']
+                    log.debug('Selected for %s %s (from %s)',
+                            uri, desc, rf.filename)
+                    repo.setRevision(rev)
                 else:
-                    raise RuntimeError('tips file exists, but does not '
-                            'contain repository %s or alias %s' % (uri, name))
+                    raise RuntimeError('File %s exists but does not '
+                            'contain repository %s or alias %s'
+                            % (rf.filename, uri, name))
             else:
                 if not self._cfg.depMode:
                     log.warning('No explicit revision given for repository %s, '
@@ -444,6 +433,8 @@ The complete related traceback has been saved as %(stackfile)s
         parser.error('A plan file or URI is required')
     planFile = args[0]
     plan = config.openPlan(planFile)
+    if 'WMS' in os.environ:
+        plan.wmsBase = os.environ['WMS']
 
     for val in (options.set_tag or ()):
         name, tag = val.split('=', 1)

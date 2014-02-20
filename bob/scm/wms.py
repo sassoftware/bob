@@ -34,9 +34,11 @@ class WmsRepository(scm.ScmRepository):
         self.path = path
         self.branch = branch
 
-        silo, subpath = path.split('/', 1)
-        self.pathq = self._quote(silo) + '/' + self._quote(subpath)
-        self.repos = self.base + '/api/repos/' + self.pathq
+    @property
+    def repos(self):
+        silo, subpath = self.path.split('/', 1)
+        pathq = self._quote(silo) + '/' + self._quote(subpath)
+        return self.base + '/api/repos/' + pathq
 
     @staticmethod
     def _quote(foo):
@@ -106,3 +108,10 @@ class WmsRepository(scm.ScmRepository):
         with open(snapPath, 'w') as f_out:
             copyfileobj(f_in, f_out)
         f_in.close()
+
+    def setRevision(self, rev):
+        super(WmsRepository, self).setRevision(rev)
+        if 'branch' in rev:
+            self.branch = rev['branch']
+        if 'path' in rev:
+            self.path = rev['path']

@@ -22,6 +22,7 @@ import tempfile
 from conary.lib import util
 
 from bob import main as bob_main
+from bob.rev_file import RevisionFile
 from bob.scm import wms
 
 
@@ -31,20 +32,25 @@ def main(args=sys.argv[1:]):
     parser.add_option('--repo')
     parser.add_option('--plan')
     options, args = parser.parse_args(args)
-    if not options.base_uri or not options.repo or not options.plan:
-        parser.error("missing option")
-
-    tips = {}
-    for line in open('revision.txt'):
-        repo, branch, tip = line.strip().split(' ', 2)
-        if repo == options.repo:
-            break
+    if options.base_uri:
+        base = options.base_uri
+    elif 'WMS' in os.environ:
+        base = os.environ['WMS']
     else:
+        parser.error("--base-uri option or WMS env var must be set")
+    if not options.repo:
+        parser.error("--repo option must be set")
+    if not options.plan:
+        parser.error("--plan option must be set")
+
+    rf = RevisionFile()
+    if options.repo not in rf.revs:
         sys.exit("repo %s not in revision.txt" % options.repo)
-    repo = wms.WmsRepository(base=options.base_uri, path=options.repo)
-    repo.revision = tip
+    tip = rf.revs.get(options.repo)
+    repo = wms.WmsRepository(base=base, path=options.repo)
+    repo.revision = tip['id']
+    repo.branch = tip['branch']
     repo.revIsExact = True
-    repo.branch = branch
 
     planDir = tempfile.mkdtemp(dir='.')
     try:

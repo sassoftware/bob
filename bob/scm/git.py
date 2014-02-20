@@ -78,3 +78,10 @@ class GitRepository(scm.ScmRepository):
     def getAction(self, extra=''):
         return 'addGitSnapshot(%r, branch=%r, tag=%r%s)' % (
                 self.uri, self.branch, self.getShortRev(), extra)
+
+    def setRevision(self, rev):
+        super(GitRepository, self).setRevision(rev)
+        if 'branch' in rev:
+            self.branch = rev['branch']
+        if 'uri' in rev:
+            self.uri = rev['uri']
