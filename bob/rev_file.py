@@ -53,7 +53,7 @@ class RevisionFile(object):
             if not self.filename:
                 raise RuntimeError("GERRIT_PROJECT is set but revision.txt "
                         "was not found in the workspace")
-            project = os.environ['GERRIT_PROJECT']
+            project = os.path.basename(os.environ['GERRIT_PROJECT'])
             if project not in self.basenames:
                 raise RuntimeError("GERRIT_PROJECT is set to %r but no repo "
                         "with that basename is in %s"
