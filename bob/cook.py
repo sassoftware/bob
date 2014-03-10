@@ -83,7 +83,6 @@ class Batch(object):
         self._contextCache = ContextCache(self._helper.cfg)
         self._bobTroves = []
         self._troves = set()
-        self._commit = None
 
         # job state
         self._jobId = None
@@ -104,30 +103,22 @@ class Batch(object):
 
         @type bobTrove: L{bob.trove.BobPackage}
         '''
-        if bobTrove.getPackageName() == 'product-definition':
-            log.info("Package %s=%s will not be built", bobTrove.getName(),
-                    bobTrove.getDownstreamVersion())
-            return
-
         _macros = Macros(self._helper.plan.macros)
         macros = {}
         config = bobTrove.getTargetConfig()
 
-        doCommit = not config.noCommit
-        if self._commit is None:
-            self._commit = doCommit
-        elif self._commit != doCommit:
-            senseA = doCommit and "wants" or "does not want"
-            senseB = doCommit and "do not" or "do"
-            log.error("Package %s %s to commit, but existing packages "
-                "in batch %s", bobTrove.getPackageName(), senseA, senseB)
-            log.error("Either all packages in a batch must commit, or none can")
-            raise RuntimeError("Can't commit part of a batch")
-
+        noBuild = bobTrove.getPackageName() == 'product-definition'
         if config:
             for key, value in config.macros.iteritems():
                 if key not in self._helper.plan.skipMacros:
                     macros[key] = value % _macros
+            if config.noBuild:
+                noBuild = True
+
+        if noBuild:
+            log.info("Package %s=%s will not be built", bobTrove.getName(),
+                    bobTrove.getDownstreamVersion())
+            return
 
         # Reduce the set of flavors to build
         oldFlavors = bobTrove.getFlavors()
@@ -220,14 +211,10 @@ class Batch(object):
             job)
         print 'Batch results:', self._testSuite.describe()
 
-        # Bail out without committing if tests failed ...
+        # Bail out without committing if tests failed
         if not self._testSuite.isSuccessful():
             log.error('Some tests failed, aborting')
             raise TestFailureError()
-
-        # ... or if all packages are set not to commit
-        if self._commit is False:
-            return {}
 
         # Commit to target repository
         if job.isCommitting():

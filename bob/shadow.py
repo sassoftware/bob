@@ -216,6 +216,7 @@ class ShadowBatch(object):
                 for pathId, path, fileId, fileVer in oldTrove.getNewFileList():
                     oldFiles[path] = (pathId, path, fileId, fileVer)
             newTrove = Trove(package.name, package.nextVersion, deps.Flavor())
+            newTrove.setFactory(package.targetConfig.factory)
 
             # Add upstream files to new trove. Recycle pathids from the old
             # version.
@@ -359,6 +360,9 @@ def _sourcesIdentical(oldTrove, newTrove, changeSets):
 
         assert False, "file is not in any changeset"
 
+    if oldTrove.getFactory() != newTrove.getFactory():
+        return False
+
     oldPaths = dict((x[1], x) for x in listFiles(oldTrove))
     newPaths = dict((x[1], x) for x in listFiles(newTrove))
 
@@ -387,7 +391,9 @@ def _loadRecipe(helper, package, recipePath):
     use.setBuildFlagsFromFlavor(package.getPackageName(),
             helper.cfg.buildFlavor, error=False)
     loader = RecipeLoader(recipePath, helper.cfg, helper.getRepos(),
-            directory=helper.plan.recipeDir)
+            directory=helper.plan.recipeDir,
+            factory=package.targetConfig.factory,
+            )
     recipeClass = loader.getRecipe()
 
     dummybranch = Branch([helper.plan.getTargetLabel()])

@@ -46,7 +46,8 @@ class BobTargetSection(cfg.ConfigSection):
     version                 = CfgString             # macros supported
     sourceTree              = CfgString
     serializeFlavors        = CfgBool
-    noCommit                = CfgBool
+    noBuild                 = CfgBool
+    factory                 = CfgString
 
     _cfg_aliases = [
             ('hg', 'scm'),
