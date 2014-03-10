@@ -342,6 +342,12 @@ def _sourcesIdentical(oldTrove, newTrove, changeSets):
         else:
             return trv.getNewFileList()
 
+    def getFactory(trv):
+        if isinstance(trv, Trove):
+            return trv.getFactory()
+        else:
+            return trv.getTroveInfo().factory()
+
     def getSHA1(fileId, pathId):
         for changeSet in changeSets:
             if isinstance(changeSet, ChangeSet):
@@ -360,7 +366,7 @@ def _sourcesIdentical(oldTrove, newTrove, changeSets):
 
         assert False, "file is not in any changeset"
 
-    if oldTrove.getFactory() != newTrove.getFactory():
+    if getFactory(oldTrove) != getFactory(newTrove):
         return False
 
     oldPaths = dict((x[1], x) for x in listFiles(oldTrove))
