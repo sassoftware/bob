@@ -88,7 +88,7 @@ def mVersion(package, recipe):
 
 
 RE_SOURCE = re.compile(
-    r'''^(\s+)([a-zA-Z0-9_]+)\.add(Archive|(Git|Mercurial|Cvs|Svn)Snapshot)'''
+    r'''^(\s+)([a-zA-Z0-9_]+)\.add(Git|Mercurial|Cvs|Svn)Snapshot'''
     r'''\s*\(.*?\).*?$''', re.M | re.S)
 @_register
 @_require_target_attribute('scm')
