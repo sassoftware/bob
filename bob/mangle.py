@@ -84,7 +84,7 @@ def mVersion(package, recipe):
 
     rawVersion = package.getTargetConfig().version
     newVersion = macro.expand(rawVersion, package)
-    return RE_VERSION.sub(r'\1version = %r' % (newVersion,), recipe)
+    return RE_VERSION.sub(r'\1version = %r' % (newVersion,), recipe, count=1)
 
 
 RE_SOURCE = re.compile(
@@ -130,5 +130,5 @@ def mClassVar(package, recipe):
         if not pattern.search(recipe):
             raise RuntimeError("Unable to mangle class variable %r to %r" %
                     (name, value))
-        recipe = pattern.sub(replacement, recipe)
+        recipe = pattern.sub(replacement, recipe, count=1)
     return recipe
