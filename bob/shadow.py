@@ -168,8 +168,8 @@ class ShadowBatch(object):
         self.oldChangeSet = self.helper.createChangeSet(toGet)
         for package, oldVersion in zip(self.packages, oldVersions):
             if oldVersion:
-                self.oldTroves.append(
-                        self.oldChangeSet.getNewTroveVersion(*oldVersion))
+                trvCs = self.oldChangeSet.getNewTroveVersion(*oldVersion)
+                self.oldTroves.append(Trove(trvCs))
             else:
                 self.oldTroves.append(None)
 
@@ -213,7 +213,7 @@ class ShadowBatch(object):
             filesToAdd = {}
             oldFiles = {}
             if oldTrove is not None:
-                for pathId, path, fileId, fileVer in oldTrove.getNewFileList():
+                for pathId, path, fileId, fileVer in oldTrove.iterFileList():
                     oldFiles[path] = (pathId, path, fileId, fileVer)
             newTrove = Trove(package.name, package.nextVersion, deps.Flavor())
             newTrove.setFactory(package.targetConfig.factory)
@@ -273,9 +273,9 @@ class ShadowBatch(object):
             # If the old and new troves are identical, just use the old one.
             if oldTrove and _sourcesIdentical(
                     oldTrove, newTrove, [self.oldChangeSet, filesToAdd]):
-                package.setDownstreamVersion(oldTrove.getNewVersion())
+                package.setDownstreamVersion(oldTrove.getVersion())
                 log.debug('Skipped %s=%s', oldTrove.getName(),
-                        oldTrove.getNewVersion())
+                        oldTrove.getVersion())
                 continue
 
             # Add files and contents to changeset.
@@ -336,26 +336,14 @@ def _sourcesIdentical(oldTrove, newTrove, changeSets):
     Return C{True} if C{oldTrove} and C{newTrove} have the same
     contents.
     '''
-    def listFiles(trv):
-        if isinstance(trv, Trove):
-            return list(trv.iterFileList())
-        else:
-            return trv.getNewFileList()
-
-    def getFactory(trv):
-        if isinstance(trv, Trove):
-            return trv.getFactory()
-        else:
-            return trv.getTroveInfo().factory()
-
-    def getSHA1(fileId, pathId):
+    def getSHA1(fileId):
         for changeSet in changeSets:
             if isinstance(changeSet, ChangeSet):
                 fileChange = changeSet.getFileChange(None, fileId)
                 if not fileChange:
                     continue
 
-                fileObj = ThawFile(fileChange, pathId)
+                fileObj = ThawFile(fileChange, None)
                 return fileObj.contents.sha1()
             else:
                 fileObj = changeSet.get(fileId, None)
@@ -364,31 +352,22 @@ def _sourcesIdentical(oldTrove, newTrove, changeSets):
 
                 return fileObj[0].contents.sha1()
 
-        assert False, "file is not in any changeset"
+        raise KeyError("file is not in any changeset")
 
-    if getFactory(oldTrove) != getFactory(newTrove):
+    if oldTrove.getFactory() != newTrove.getFactory():
         return False
 
-    oldPaths = dict((x[1], x) for x in listFiles(oldTrove))
-    newPaths = dict((x[1], x) for x in listFiles(newTrove))
-
+    oldPaths = dict((x[1], x) for x in oldTrove.iterFileList())
+    newPaths = dict((x[1], x) for x in newTrove.iterFileList())
     if set(oldPaths) != set(newPaths):
-        # Different paths
         return False
 
     for path, (oldPathId, _, oldFileId, _) in oldPaths.items():
         newPathId, _, newFileId, _ = newPaths[path]
-
         if oldFileId == newFileId:
-            # Same fileid
             continue
-
-        oldSHA1 = getSHA1(oldFileId, oldPathId)
-        newSHA1 = getSHA1(newFileId, newPathId)
-        if oldSHA1 != newSHA1:
-            # Contents differ
+        if getSHA1(oldFileId) != getSHA1(newFileId):
             return False
-
     return True
 
 
