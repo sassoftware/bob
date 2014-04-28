@@ -82,30 +82,26 @@ class ShadowBatch(object):
 
     def _makeRecipes(self):
         """Take pristine upstream sources, mangle them, and load the result."""
+        if self.helper.plan.dumpRecipes:
+            recipeDir = self.helper.plan.recipeDir
+        else:
+            recipeDir = tempfile.mkdtemp(prefix='bob-')
+        # Dump all the recipes out at once in case they have interdependencies
+        finalRecipes = []
         for package in self.packages:
             recipe = package.getRecipe()
             finalRecipe = mangle(package, recipe)
             package.recipeFiles[package.getRecipeName()] = finalRecipe
-            if self.helper.plan.dumpRecipes:
-                with open(os.path.join(self.helper.plan.recipeDir,
-                        package.getRecipeName()), 'w') as fobj:
-                    fobj.write(finalRecipe)
-                continue
-
-            # Write to disk for convenience, then load
-            tempDir = tempfile.mkdtemp(prefix=('%s-'
-                % package.getPackageName()))
-            try:
-                recipePath = os.path.join(tempDir, package.getRecipeName())
-                fObj = open(recipePath, 'w')
-                fObj.write(finalRecipe)
-                fObj.close()
-
-                recipeObj = _loadRecipe(self.helper, package, recipePath)
-            finally:
-                shutil.rmtree(tempDir)
-
+            with open(os.path.join(recipeDir, package.getRecipeName()
+                    ), 'w') as fobj:
+                fobj.write(finalRecipe)
+            finalRecipes.append(finalRecipe)
+        for package, finalRecipe in zip(self.packages, finalRecipes):
+            recipeObj = _loadRecipe(self.helper, package,
+                    os.path.join(recipeDir, package.getRecipeName()))
             self.recipes.append((finalRecipe, recipeObj))
+        if not self.helper.plan.dumpRecipes:
+            shutil.rmtree(recipeDir)
 
     def _makeProddef(self):
         pkg = self._getProddefPackage()

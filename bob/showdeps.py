@@ -301,3 +301,7 @@ def main(args=sys.argv[1:]):
             print host
             for item, requirers in sorted(items.items()):
                 print ' ', item, '\t', sorted(requirers)[0]
+
+
+if __name__ == '__main__':
+    main()
