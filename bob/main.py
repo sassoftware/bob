@@ -280,8 +280,14 @@ class BobMain(object):
             cdo.pickleCoverageDict = self._coverageData
             cdo.oldSchoolCoverageData = report
             coverage.generate_reports('output/coverage', cdo)
-            
+
     def run(self):
+        try:
+            return self._run()
+        finally:
+            self._helper.cleanupEphemeralDir()
+
+    def _run(self):
         '''
         Execute the bob plan.
         '''
@@ -298,10 +304,7 @@ class BobMain(object):
         commitMap = {}
         for batch in recurse.getBatchFromPackages(self._helper, targetPackages):
             try:
-                try:
-                    newTroves = batch.run(self)
-                finally:
-                    self._helper.cleanupEphemeralDir()
+                newTroves = batch.run(self)
             except JobFailedError, e:
                 print 'Job %d failed:' % e.jobId
                 print e.why

@@ -47,10 +47,13 @@ class WmsRepository(scm.ScmRepository):
     def _getTip(self):
         branch = self.branch or 'HEAD'
         f = urllib2.urlopen(self.repos + '/poll/' + self._quote(branch))
-        result = f.readlines()
+        for line in f:
+            path, branch, tip = line.split()
+            if path == self.path:
+                break
+        else:
+            assert False
         f.close()
-        assert len(result) == 1
-        path, branch, tip = result[0].split()
         assert len(tip) == 40
         return branch, tip
 
