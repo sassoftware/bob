@@ -47,7 +47,7 @@ class BobTargetSection(cfg.ConfigSection):
     sourceTree              = CfgString
     serializeFlavors        = CfgBool
     noBuild                 = CfgBool
-    factory                 = CfgString
+    factory                 = (CfgString, '')
 
     _cfg_aliases = [
             ('hg', 'scm'),
