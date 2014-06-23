@@ -277,6 +277,7 @@ def main(args=sys.argv[1:]):
         # Remove edges that are made entirely redundant by a longer path.
         edges_trimmed = {}
         for provider, requirers in edges.iteritems():
+            requirers.discard(provider)
             requirers = dedupe(requirers, edges)
             edges_trimmed[provider] = requirers
         print '# map of providers to the set of requirers'
