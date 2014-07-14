@@ -31,6 +31,7 @@ def main(args=sys.argv[1:]):
     parser.add_option('--base-uri')
     parser.add_option('--repo')
     parser.add_option('--plan')
+    parser.add_option('--checkout')
     options, args = parser.parse_args(args)
     if options.base_uri:
         base = options.base_uri
@@ -40,25 +41,38 @@ def main(args=sys.argv[1:]):
         parser.error("--base-uri option or WMS env var must be set")
     if not options.repo:
         parser.error("--repo option must be set")
-    if not options.plan:
-        parser.error("--plan option must be set")
+    if not options.plan and not options.checkout:
+        parser.error("Must set one of --checkout or --plan")
 
     rf = RevisionFile()
-    if options.repo not in rf.revs:
-        sys.exit("repo %s not in revision.txt" % options.repo)
     tip = rf.revs.get(options.repo)
-    repo = wms.WmsRepository(base=base, path=options.repo)
+    path = options.repo
+    if not tip:
+        for path, tip in rf.revs.items():
+            if os.path.basename(path) == options.repo:
+                break
+        else:
+            sys.exit("repo %s not in revision.txt" % options.repo)
+    repo = wms.WmsRepository(base=base, path=path)
     repo.revision = tip['id']
     repo.branch = tip['branch']
     repo.revIsExact = True
 
-    planDir = tempfile.mkdtemp(dir='.')
-    try:
-        prefix = repo.checkout(planDir)
-        plan = os.path.join(planDir, prefix, options.plan)
-        return bob_main.main([plan])
-    finally:
-        util.rmtree(planDir)
+    if options.checkout:
+        checkoutDir = os.path.abspath(options.checkout)
+        if os.path.exists(checkoutDir):
+            util.rmtree(checkoutDir)
+        parent = os.path.dirname(checkoutDir)
+        prefix = repo.checkout(parent)
+        os.rename(os.path.join(parent, prefix), checkoutDir)
+    else:
+        planDir = tempfile.mkdtemp(dir='.')
+        try:
+            prefix = repo.checkout(planDir)
+            plan = os.path.join(planDir, prefix, options.plan)
+            return bob_main.main([plan])
+        finally:
+            util.rmtree(planDir)
 
 
 if __name__ == '__main__':
