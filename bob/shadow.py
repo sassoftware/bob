@@ -74,6 +74,7 @@ class ShadowBatch(object):
             return
 
         self._makeProddef()
+        self._makePlatdef()
         self._makeRecipes()
         if self.helper.plan.depMode:
             return
@@ -116,6 +117,24 @@ class ShadowBatch(object):
     def _getProddefPackage(self):
         pkgs = [ x for x in self.packages
             if x.name == 'product-definition:source' ]
+        if pkgs:
+            return pkgs[0]
+        return False
+
+    def _makePlatdef(self):
+        pkg = self._getPlatdefPackage()
+        if not pkg:
+            return
+        platDefs = [ x for x in pkg.recipeFiles if 
+                        x.startswith('plat') and x.endswith('xml') ]
+        for fname in platDefs: 
+            platdef = pkg.recipeFiles.get(fname)
+            finalPlatdef = platdef % pkg.getMangleData().get('macros')
+            pkg.recipeFiles[fname] = finalPlatdef
+
+    def _getPlatdefPackage(self):
+        pkgs = [ x for x in self.packages
+            if x.name == 'platform-definition:source' ]
         if pkgs:
             return pkgs[0]
         return False
