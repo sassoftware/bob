@@ -107,8 +107,10 @@ class Batch(object):
         macros = {}
         config = bobTrove.getTargetConfig()
 
-        noBuild = bobTrove.getPackageName() == 'product-definition'
-        noBuild = bobTrove.getPackageName() == 'platform-definition'
+        if bobTrove.getPackageName() in [ 'product-definition' , 
+                                                'platform-definition']:
+           noBuild=True
+ 
         if config:
             for key, value in config.macros.iteritems():
                 if key not in self._helper.plan.skipMacros:
