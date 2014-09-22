@@ -106,6 +106,8 @@ class Batch(object):
         _macros = Macros(self._helper.plan.macros)
         macros = {}
         config = bobTrove.getTargetConfig()
+        
+        noBuild = False
 
         if bobTrove.getPackageName() in [ 'product-definition' , 
                                                 'platform-definition']:
