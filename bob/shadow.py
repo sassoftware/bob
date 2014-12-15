@@ -30,6 +30,7 @@ from conary.build import lookaside
 from conary.build import recipe as cny_recipe
 from conary.build import use
 from conary.build.loadrecipe import RecipeLoader
+from conary.build.loadrecipe import RecipeLoaderFromSourceDirectory
 from conary.build.lookaside import RepositoryCache
 from conary.changelog import ChangeLog
 from conary.conaryclient import filetypes
@@ -166,7 +167,6 @@ class ShadowBatch(object):
             while newVersion in existingVersions:
                 newVersion.incrementSourceCount()
             package.nextVersion = newVersion
-
         # Grab the latest existing version so we can reuse autosources from it
         results = self.helper.getRepos().findTroves(None, latestSpecs,
                 allowMissing=True)
@@ -321,6 +321,7 @@ class ShadowBatch(object):
                     delete=False)
             f.close()
             changeSet.writeToFile(f.name)
+            import epdb;epdb.st()
             try:
                 self.helper.getRepos().commitChangeSet(changeSet)
             except:
@@ -386,16 +387,94 @@ def _sourcesIdentical(oldTrove, newTrove, changeSets):
     return True
 
 
+def _makeSourceTrove(package, helper):
+    cs = ChangeSet()
+    filesToAdd = {}
+    ver = macro.expand(package.getBaseVersion(), package) 
+    version = _createVersion(package, helper, ver)
+    latestSpec = (package.getName(), str(version.trailingLabel()), None)
+    results = helper.getRepos().findTroves(None,[latestSpec],allowMissing=True,
+                        getLeaves=False,troveTypes=trovesource.TROVE_QUERY_ALL)
+    if results:
+        existingVersions = [x[1] for x in results.get(latestSpec, ())]
+        while version in existingVersions:
+            version.incrementSourceCount()
+
+    new = Trove(package.name, version, deps.Flavor())
+    new.setFactory(package.targetConfig.factory)
+    message = "Temporary Source for %s" % version
+    message = message.rstrip() + "\n"
+    new.changeChangeLog(ChangeLog(name=helper.cfg.name,
+                contact=helper.cfg.contact, message=message))
+    for path, contents in package.recipeFiles.iteritems():
+        isText = path == package.getRecipeName()
+        pathId = hashlib.md5(path).digest()
+        fileHelper = filetypes.RegularFile(contents=contents,
+                    config=isText)
+        fileStream = fileHelper.get(pathId)
+        fileStream.flags.isSource(set=True)
+        fileId = fileStream.fileId()
+        fileVersion = new.getVersion()
+        filesToAdd[fileId] = (fileStream, fileHelper.contents, isText)
+        new.addFile(pathId, path, fileVersion, fileId)
+    new.invalidateDigests()
+    new.computeDigests()
+    for fileId, (fileObj, fileContents, cfgFile) in filesToAdd.items():
+        cs.addFileContents(fileObj.pathId(), fileObj.fileId(),
+                    ChangedFileTypes.file, fileContents, cfgFile)
+        cs.addFile(None, fileObj.fileId(), fileObj.freeze())
+    cs.newTrove(new.diff(None, absolute=True)[0])
+    return new.getNameVersionFlavor(), cs
+
+
+def tempSourceTrove(recipePath, package, helper):
+    from conary import state
+    from conary import checkin
+    from conary import trove
+    from conary.lib import util as cnyutil
+    pkgname = package.name.split(':')[0]
+    nvf, cs = _makeSourceTrove(package, helper)
+    targetDir = os.path.join(os.path.dirname(recipePath), pkgname)
+    cnyutil.mkdirChain(targetDir)
+    sourceStateMap = {}
+    pathMap = {}
+    conaryStateTargets = {}
+    troveCs = cs.getNewTroveVersion(*nvf)
+    trv = trove.Trove(troveCs)
+    sourceState = state.SourceState(nvf[0], nvf[1], nvf[1].branch())
+    if trv.getFactory():
+        sourceState.setFactory(trv.getFactory())
+    conaryState = state.ConaryState(helper.cfg.context, sourceState)
+    sourceStateMap[trv.getNameVersionFlavor()] = sourceState
+    conaryStateTargets[targetDir] = conaryState
+    for (pathId, path, fileId, version) in troveCs.getNewFileList():
+        pathMap[(nvf, path)] = (targetDir, pathId, fileId, version)
+    # Explode changeset contents.
+    checkin.CheckoutExploder(cs, pathMap, sourceStateMap)
+    # Write out CONARY state files.
+    for targetDir, conaryState in conaryStateTargets.iteritems():
+            conaryState.write(targetDir + '/CONARY')
+    return trv, targetDir
+
 def _loadRecipe(helper, package, recipePath):
     # Load the recipe
     use.setBuildFlagsFromFlavor(package.getPackageName(),
             helper.cfg.buildFlavor, error=False)
-    loader = RecipeLoader(recipePath, helper.cfg, helper.getRepos(),
-            directory=helper.plan.recipeDir,
-            factory=package.targetConfig.factory,
-            )
-    recipeClass = loader.getRecipe()
+    if package.targetConfig.factory and package.targetConfig.factory != 'factory':
+        #factoryCreatedRecipe = factoryRecipeLoader(package, helper)
+        #objDict = { 'FactoryRecipeClass' : factoryCreatedRecipe }
+        sourceTrove, targetDir = tempSourceTrove(recipePath, package, helper)
+        loader = RecipeLoaderFromSourceDirectory(sourceTrove, repos=helper.getRepos(), 
+                            cfg=helper.cfg, parentDir=targetDir, 
+                            labelPath=helper.plan.installLabelPath
+                            )
+    else:
+        loader = RecipeLoader(recipePath, helper.cfg, helper.getRepos(),
+                        directory=helper.plan.recipeDir,
+                        factory=package.targetConfig.factory,
+                        )
 
+    recipeClass = loader.getRecipe()
     dummybranch = Branch([helper.plan.getTargetLabel()])
     dummyrev = Revision('1-1')
     dummyver = dummybranch.createVersion(dummyrev)
