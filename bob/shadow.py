@@ -126,9 +126,9 @@ class ShadowBatch(object):
         pkg = self._getPlatdefPackage()
         if not pkg:
             return
-        platDefs = [ x for x in pkg.recipeFiles if 
+        platDefs = [ x for x in pkg.recipeFiles if
                         x.startswith('plat') and x.endswith('xml') ]
-        for fname in platDefs: 
+        for fname in platDefs:
             platdef = pkg.recipeFiles.get(fname)
             finalPlatdef = platdef % pkg.getMangleData().get('macros')
             pkg.recipeFiles[fname] = finalPlatdef
@@ -321,7 +321,6 @@ class ShadowBatch(object):
                     delete=False)
             f.close()
             changeSet.writeToFile(f.name)
-            import epdb;epdb.st()
             try:
                 self.helper.getRepos().commitChangeSet(changeSet)
             except:
@@ -390,7 +389,7 @@ def _sourcesIdentical(oldTrove, newTrove, changeSets):
 def _makeSourceTrove(package, helper):
     cs = ChangeSet()
     filesToAdd = {}
-    ver = macro.expand(package.getBaseVersion(), package) 
+    ver = macro.expand(package.getBaseVersion(), package)
     version = _createVersion(package, helper, ver)
     latestSpec = (package.getName(), str(version.trailingLabel()), None)
     results = helper.getRepos().findTroves(None,[latestSpec],allowMissing=True,
@@ -464,8 +463,8 @@ def _loadRecipe(helper, package, recipePath):
         #factoryCreatedRecipe = factoryRecipeLoader(package, helper)
         #objDict = { 'FactoryRecipeClass' : factoryCreatedRecipe }
         sourceTrove, targetDir = tempSourceTrove(recipePath, package, helper)
-        loader = RecipeLoaderFromSourceDirectory(sourceTrove, repos=helper.getRepos(), 
-                            cfg=helper.cfg, parentDir=targetDir, 
+        loader = RecipeLoaderFromSourceDirectory(sourceTrove, repos=helper.getRepos(),
+                            cfg=helper.cfg, parentDir=targetDir,
                             labelPath=helper.plan.installLabelPath
                             )
     else:
