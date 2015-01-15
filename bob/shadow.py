@@ -414,11 +414,12 @@ def _makeSourceTrove(package, helper):
         fileStream.flags.isSource(set=True)
         fileId = fileStream.fileId()
         fileVersion = new.getVersion()
-        filesToAdd[fileId] = (fileStream, fileHelper.contents, isText)
+        key = pathId + fileId
+        filesToAdd[key] = (fileStream, fileHelper.contents, isText)
         new.addFile(pathId, path, fileVersion, fileId)
     new.invalidateDigests()
     new.computeDigests()
-    for fileId, (fileObj, fileContents, cfgFile) in filesToAdd.items():
+    for key, (fileObj, fileContents, cfgFile) in filesToAdd.items():
         cs.addFileContents(fileObj.pathId(), fileObj.fileId(),
                     ChangedFileTypes.file, fileContents, cfgFile)
         cs.addFile(None, fileObj.fileId(), fileObj.freeze())
