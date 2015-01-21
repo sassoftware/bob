@@ -20,6 +20,7 @@ Tools for manipulating recipes and source troves.
 '''
 
 import hashlib
+import inspect
 import logging
 import os
 import shutil
@@ -27,6 +28,7 @@ import tempfile
 
 from conary.build import cook
 from conary.build import lookaside
+from conary.build import packagerecipe
 from conary.build import recipe as cny_recipe
 from conary.build import use
 from conary.build.loadrecipe import RecipeLoader
@@ -241,8 +243,10 @@ class ShadowBatch(object):
                 isText = path == package.getRecipeName()
                 _addFile(path, contents, isText)
 
-            # Collect requested auto sources from recipe.
-            if cny_recipe.isPackageRecipe(recipeObj):
+            # Collect requested auto sources from recipe. Unknown recipe types
+            # will not be loaded so recipeObj will be the class, so assume
+            # these have no sources.
+            if not inspect.isclass(recipeObj):
                 recipeFiles = dict((os.path.basename(x.getPath()), x)
                     for x in recipeObj.getSourcePathList())
                 newFiles = set(x[1] for x in newTrove.iterFileList())
@@ -483,7 +487,7 @@ def _loadRecipe(helper, package, recipePath):
             'buildbranch': dummybranch.asString(),
             }
     # Instantiate and setup if needed
-    if cny_recipe.isPackageRecipe(recipeClass):
+    if issubclass(recipeClass, packagerecipe.AbstractPackageRecipe):
         lcache = RepositoryCache(helper.getRepos(),
                 refreshFilter=lambda x: helper.plan.refreshSources)
 
