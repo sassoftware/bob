@@ -60,7 +60,7 @@ class GitRepository(scm.ScmRepository):
                 or os.path.isdir(self.repoDir + '/.git/refs')):
             subprocess.check_call(['git', 'init', '-q', '--bare'],
                     cwd=self.repoDir)
-        subprocess.check_call(['git', 'fetch', '-q',
+        subprocess.check_call(['git', 'fetch', '-q', '-f',
             self.uri, '+%s:%s' % (self.branch, self.branch)], cwd=self.repoDir)
 
     def checkout(self, workDir, subtree):
