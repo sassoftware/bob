@@ -29,7 +29,7 @@ import tempfile
 from conary.build import cook
 from conary.build import lookaside
 from conary.build import packagerecipe
-from conary.build import recipe as cny_recipe
+from conary.build import grouprecipe
 from conary.build import use
 from conary.build.loadrecipe import RecipeLoader
 from conary.build.loadrecipe import RecipeLoaderFromSourceDirectory
@@ -465,8 +465,6 @@ def _loadRecipe(helper, package, recipePath):
     use.setBuildFlagsFromFlavor(package.getPackageName(),
             helper.cfg.buildFlavor, error=False)
     if package.targetConfig.factory and package.targetConfig.factory != 'factory':
-        #factoryCreatedRecipe = factoryRecipeLoader(package, helper)
-        #objDict = { 'FactoryRecipeClass' : factoryCreatedRecipe }
         sourceTrove, targetDir = tempSourceTrove(recipePath, package, helper)
         loader = RecipeLoaderFromSourceDirectory(sourceTrove, repos=helper.getRepos(),
                             cfg=helper.cfg, parentDir=targetDir,
@@ -488,23 +486,18 @@ def _loadRecipe(helper, package, recipePath):
             }
     # Instantiate and setup if needed
     if issubclass(recipeClass, packagerecipe.AbstractPackageRecipe):
-        lcache = RepositoryCache(helper.getRepos(),
-                refreshFilter=lambda x: helper.plan.refreshSources)
-
-        recipeObj = recipeClass(helper.cfg, lcache, [], macros,
-            lightInstance=True)
-        recipeObj.sourceVersion = dummyver
-        recipeObj.populateLcache()
-        if not recipeObj.needsCrossFlags():
-            recipeObj.crossRequires = []
-        recipeObj.loadPolicy()
-        recipeObj.setup()
-        return recipeObj
-    elif cny_recipe.isGroupRecipe(recipeClass):
-        # Only necessary for dependency analysis
-        recipeObj = recipeClass(helper.getRepos(), helper.cfg,
+        if issubclass(recipeClass, grouprecipe._BaseGroupRecipe):
+            # Only necessary for dependency analysis
+            recipeObj = recipeClass(helper.getRepos(), helper.cfg,
                 dummybranch.label(), helper.cfg.buildFlavor, None,
                 extraMacros=macros)
+        else:
+            lcache = RepositoryCache(helper.getRepos(),
+                refreshFilter=lambda x: helper.plan.refreshSources)
+            recipeObj = recipeClass(helper.cfg, lcache, [], macros, lightInstance=True)
+            if not recipeObj.needsCrossFlags():
+                recipeObj.crossRequires = []
+            recipeObj.populateLcache()
         recipeObj.sourceVersion = dummyver
         recipeObj.loadPolicy()
         recipeObj.setup()
