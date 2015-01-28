@@ -485,26 +485,32 @@ def _loadRecipe(helper, package, recipePath):
             'buildbranch': dummybranch.asString(),
             }
     # Instantiate and setup if needed
-    if issubclass(recipeClass, packagerecipe.AbstractPackageRecipe):
-        if issubclass(recipeClass, grouprecipe._BaseGroupRecipe):
-            # Only necessary for dependency analysis
-            recipeObj = recipeClass(helper.getRepos(), helper.cfg,
-                dummybranch.label(), helper.cfg.buildFlavor, None,
-                extraMacros=macros)
-        else:
-            lcache = RepositoryCache(helper.getRepos(),
-                refreshFilter=lambda x: helper.plan.refreshSources)
-            recipeObj = recipeClass(helper.cfg, lcache, [], macros, lightInstance=True)
-            if not recipeObj.needsCrossFlags():
-                recipeObj.crossRequires = []
-            recipeObj.populateLcache()
-        recipeObj.sourceVersion = dummyver
-        recipeObj.loadPolicy()
-        recipeObj.setup()
-        return recipeObj
-
-    # Just the class is enough for everything else
-    return recipeClass
+    lcache = RepositoryCache(helper.getRepos(),
+            refreshFilter=lambda x: helper.plan.refreshSources)
+    if issubclass(recipeClass, grouprecipe._BaseGroupRecipe):
+        recipeObj = recipeClass(
+                repos=helper.getRepos(),
+                cfg=helper.cfg,
+                label=dummybranch.label(),
+                flavor=helper.cfg.buildFlavor,
+                laReposCache=lcache,
+                extraMacros=macros,
+                )
+    else:
+        recipeObj = recipeClass(
+                cfg=helper.cfg,
+                laReposCache=lcache,
+                srcdirs=[],
+                extraMacros=macros,
+                lightInstance=True,
+                )
+    if not recipeObj.needsCrossFlags():
+        recipeObj.crossRequires = []
+    recipeObj.populateLcache()
+    recipeObj.sourceVersion = dummyver
+    recipeObj.loadPolicy()
+    recipeObj.setup()
+    return recipeObj
 
 
 def _getSnapshot(helper, package, source, tempDir):
