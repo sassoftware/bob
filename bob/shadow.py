@@ -28,8 +28,8 @@ import tempfile
 
 from conary.build import cook
 from conary.build import lookaside
-from conary.build import packagerecipe
 from conary.build import grouprecipe
+from conary.build import recipe as cny_recipe
 from conary.build import use
 from conary.build.loadrecipe import RecipeLoader
 from conary.build.loadrecipe import RecipeLoaderFromSourceDirectory
@@ -487,7 +487,7 @@ def _loadRecipe(helper, package, recipePath):
     # Instantiate and setup if needed
     lcache = RepositoryCache(helper.getRepos(),
             refreshFilter=lambda x: helper.plan.refreshSources)
-    if issubclass(recipeClass, grouprecipe._BaseGroupRecipe):
+    if recipeClass.getType() == cny_recipe.RECIPE_TYPE_GROUP:
         recipeObj = recipeClass(
                 repos=helper.getRepos(),
                 cfg=helper.cfg,
@@ -496,7 +496,11 @@ def _loadRecipe(helper, package, recipePath):
                 laReposCache=lcache,
                 extraMacros=macros,
                 )
-    else:
+    elif recipeClass.getType() in [
+            cny_recipe.RECIPE_TYPE_PACKAGE,
+            cny_recipe.RECIPE_TYPE_INFO,
+            cny_recipe.RECIPE_TYPE_CAPSULE,
+            ]:
         recipeObj = recipeClass(
                 cfg=helper.cfg,
                 laReposCache=lcache,
@@ -504,6 +508,8 @@ def _loadRecipe(helper, package, recipePath):
                 extraMacros=macros,
                 lightInstance=True,
                 )
+    else:
+        return recipeClass
     if not recipeObj.needsCrossFlags():
         recipeObj.crossRequires = []
     recipeObj.populateLcache()
