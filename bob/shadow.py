@@ -277,7 +277,7 @@ class ShadowBatch(object):
                     snapshot = _getSnapshot(self.helper, package, source,
                             tempDir)
 
-                    if not source.ephemeral:
+                    if not source.ephemeral and snapshot:
                         autoPathId = hashlib.md5(autoPath).digest()
                         autoObj = FileFromFilesystem(snapshot, autoPathId)
                         autoObj.flags.isAutoSource(set=True)
