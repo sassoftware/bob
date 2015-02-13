@@ -471,6 +471,7 @@ def _loadRecipe(helper, package, recipePath):
                             labelPath=helper.plan.installLabelPath
                             )
     else:
+        sourceTrove = None
         loader = RecipeLoader(recipePath, helper.cfg, helper.getRepos(),
                         directory=helper.plan.recipeDir,
                         factory=package.targetConfig.factory,
@@ -512,7 +513,8 @@ def _loadRecipe(helper, package, recipePath):
         return recipeClass
     if not recipeObj.needsCrossFlags():
         recipeObj.crossRequires = []
-    recipeObj.populateLcache()
+    if sourceTrove is None:
+        recipeObj.populateLcache()
     recipeObj.sourceVersion = dummyver
     recipeObj.loadPolicy()
     recipeObj.setup()
