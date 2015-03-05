@@ -19,7 +19,7 @@ import logging
 import os
 import subprocess
 import urllib
-import urllib2
+from conary.lib.http import opener
 from conary.lib.util import copyfileobj
 
 from bob import scm
@@ -33,6 +33,7 @@ class WmsRepository(scm.ScmRepository):
         self.base = base
         self.path = path
         self.branch = branch
+        self._open = opener.URLOpener(followRedirects=True).open
 
     @property
     def repos(self):
@@ -46,7 +47,7 @@ class WmsRepository(scm.ScmRepository):
 
     def _getTip(self):
         branch = self.branch or 'HEAD'
-        f = urllib2.urlopen(self.repos + '/poll/' + self._quote(branch))
+        f = self._open(self.repos + '/poll/' + self._quote(branch))
         for line in f:
             path, branch, tip = line.split()
             if path == self.path:
@@ -77,7 +78,7 @@ class WmsRepository(scm.ScmRepository):
     def checkout(self, workDir, subtree=None):
         archive = self._archive()
         data = urllib.urlencode([('subtree', subtree)]) if subtree else None
-        f = urllib2.urlopen(self.repos + '/archive/'
+        f = self._open(self.repos + '/archive/'
                     + self.revision + '/' + archive, data=data)
         tar = subprocess.Popen(['tar', '-x'], stdin=subprocess.PIPE,
                 cwd=workDir)
@@ -94,7 +95,7 @@ class WmsRepository(scm.ScmRepository):
         return prefix
 
     def getAction(self, extra=''):
-        f = urllib2.urlopen(self.repos + '/show_url')
+        f = self._open(self.repos + '/show_url')
         url = f.readline().strip()
         f.close()
         return 'addGitSnapshot(%r, branch=%r, tag=%r%s)' % (
@@ -106,8 +107,8 @@ class WmsRepository(scm.ScmRepository):
         archive = urllib.quote(os.path.basename(snapPath))
         url = (self.repos + '/archive/'
                 + urllib.quote(self.revision) + '/' + archive)
-        log.info("Downloading snapshot: %s", url)
-        f_in = urllib2.urlopen(url)
+        log.info("Downloading %s", archive)
+        f_in = self._open(url)
         with open(snapPath, 'w') as f_out:
             copyfileobj(f_in, f_out)
         f_in.close()

@@ -180,5 +180,10 @@ def openPlan(path, preload=DEFAULT_PATH):
             item = os.path.join(os.environ['HOME'], item[2:])
         if os.path.isfile(item):
             plan.read(item)
+    wmsBase = plan.wmsBase
     plan.read(path)
+    if wmsBase:
+        # Prefer wmsBase from global config over plan config, because it may
+        # supply credentials
+        plan.wmsBase = wmsBase
     return plan
