@@ -21,12 +21,14 @@ import sys
 import tempfile
 from conary.lib import util
 
+from bob import config
 from bob import main as bob_main
 from bob.rev_file import RevisionFile
 from bob.scm import wms
 
 
 def main(args=sys.argv[1:]):
+    cfg = config.openPlan(None, systemOnly=True)
     parser = optparse.OptionParser()
     parser.add_option('--base-uri')
     parser.add_option('--repo')
@@ -35,6 +37,8 @@ def main(args=sys.argv[1:]):
     options, args = parser.parse_args(args)
     if options.base_uri:
         base = options.base_uri
+    elif cfg.wmsBase:
+        base = cfg.wmsBase
     elif 'WMS' in os.environ:
         base = os.environ['WMS']
     else:

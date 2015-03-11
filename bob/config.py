@@ -173,13 +173,15 @@ class BobConfig(cfg.SectionedConfigFile):
         self.configLine('scm %s hg %s' % (key, value))
 
 
-def openPlan(path, preload=DEFAULT_PATH):
+def openPlan(path, preload=DEFAULT_PATH, systemOnly=False):
     plan = BobConfig()
     for item in preload:
         if item.startswith('~/') and 'HOME' in os.environ:
             item = os.path.join(os.environ['HOME'], item[2:])
         if os.path.isfile(item):
             plan.read(item)
+    if systemOnly:
+        return plan
     wmsBase = plan.wmsBase
     plan.read(path)
     if wmsBase:
