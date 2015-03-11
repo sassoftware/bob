@@ -436,8 +436,6 @@ The complete related traceback has been saved as %(stackfile)s
         parser.error('A plan file or URI is required')
     planFile = args[0]
     plan = config.openPlan(planFile)
-    if 'WMS' in os.environ:
-        plan.wmsBase = os.environ['WMS']
 
     for val in (options.set_tag or ()):
         name, tag = val.split('=', 1)

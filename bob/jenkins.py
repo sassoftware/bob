@@ -35,14 +35,12 @@ def main(args=sys.argv[1:]):
     parser.add_option('--plan')
     parser.add_option('--checkout')
     options, args = parser.parse_args(args)
-    if options.base_uri:
-        base = options.base_uri
-    elif cfg.wmsBase:
+    if cfg.wmsBase:
         base = cfg.wmsBase
-    elif 'WMS' in os.environ:
-        base = os.environ['WMS']
+    elif options.base_uri:
+        base = options.base_uri
     else:
-        parser.error("--base-uri option or WMS env var must be set")
+        parser.error("Please set wmsBase option in /etc/bobrc or ~/.bobrc")
     if not options.repo:
         parser.error("--repo option must be set")
     if not options.plan and not options.checkout:
