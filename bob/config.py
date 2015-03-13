@@ -173,8 +173,8 @@ class BobConfig(cfg.SectionedConfigFile):
         self.configLine('scm %s hg %s' % (key, value))
 
 
-def openPlan(path, preload=DEFAULT_PATH, systemOnly=False):
-    plan = BobConfig()
+def openPlan(path, preload=DEFAULT_PATH, systemOnly=False, cls=BobConfig):
+    plan = cls()
     for item in preload:
         if item.startswith('~/') and 'HOME' in os.environ:
             item = os.path.join(os.environ['HOME'], item[2:])
