@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 
-
+import base64
 import copy
 import logging
 import optparse
@@ -61,6 +61,7 @@ class BobMain(object):
         self._helper = ClientHelper(bcfg, None, pluginmgr)
         self._targetConfigs = {}
         self._macros = {}
+        self._wmsToken = None
 
         # repo info
         self._scm = {}
@@ -180,6 +181,16 @@ class BobMain(object):
                 # Maybe requires a build-time macro
                 pass
 
+        if self._cfg.needWmsToken:
+            self._wmsCli = wms.WmsClient(self._cfg)
+            self._wmsToken = self._wmsCli.create_token()
+            if self._wmsToken:
+                creds = self._wmsToken
+            else:
+                creds = self._wmsCli.wmsUser
+            encoded = base64.b64encode('%s:%s' % creds)
+            cfg.configLine('macros wms_token %s' % encoded)
+
         if not self._cfg.depMode:
             self._helper.getrMakeClient().addRepositoryInfo(cfg)
         self._helper.configChanged()
@@ -208,8 +219,7 @@ class BobMain(object):
                 if not rev:
                     raise RuntimeError("SCM statements of type 'wms' require "
                             "a branch argument")
-                repo = wms.WmsRepository(self._cfg.wmsBase,
-                        path=uri, branch=rev)
+                repo = wms.WmsRepository(self._cfg, path=uri, branch=rev)
                 # It's a branch, not a hard revision. Still need to consult the
                 # revision.txt file.
                 rev = None
@@ -281,6 +291,11 @@ class BobMain(object):
             cdo.oldSchoolCoverageData = report
             coverage.generate_reports('output/coverage', cdo)
 
+    def _cleanup(self):
+        if self._wmsToken:
+            self._wmsCli.destroy_token(self._wmsToken)
+            self._wmsToken = None
+
     def run(self):
         try:
             return self._run()
@@ -308,6 +323,7 @@ class BobMain(object):
             except JobFailedError, e:
                 print 'Job %d failed:' % e.jobId
                 print e.why
+                self._cleanup()
                 return 2
             except TestFailureError:
                 self._testSuite.merge(batch.getTestSuite())
@@ -317,12 +333,15 @@ class BobMain(object):
                 # some failed
                 self._writeArtifacts()
                 print 'Aborting due to failed tests'
+                self._cleanup()
                 return 0
             else:
                 self._testSuite.merge(batch.getTestSuite())
                 coverage.merge(self._coverageData, batch.getCoverageData())
                 util.insertResolveTroves(self._helper.cfg, newTroves)
                 commitMap.update(newTroves)
+
+        self._cleanup()
 
         # Output test and coverage results
         self._writeArtifacts()

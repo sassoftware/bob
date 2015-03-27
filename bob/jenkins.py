@@ -35,10 +35,8 @@ def main(args=sys.argv[1:]):
     parser.add_option('--plan')
     parser.add_option('--checkout')
     options, args = parser.parse_args(args)
-    if cfg.wmsBase:
-        base = cfg.wmsBase
-    elif options.base_uri:
-        base = options.base_uri
+    if options.base_uri and not cfg.wmsBase:
+        cfg.wmsBase = options.base_uri
     else:
         parser.error("Please set wmsBase option in /etc/bobrc or ~/.bobrc")
     if not options.repo:
@@ -55,7 +53,7 @@ def main(args=sys.argv[1:]):
                 break
         else:
             sys.exit("repo %s not in revision.txt" % options.repo)
-    repo = wms.WmsRepository(base=base, path=path)
+    repo = wms.WmsRepository(cfg, path=path)
     repo.revision = tip['id']
     repo.branch = tip['branch']
     repo.revIsExact = True

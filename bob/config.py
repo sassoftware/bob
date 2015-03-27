@@ -75,6 +75,7 @@ class BobConfig(cfg.SectionedConfigFile):
     # build
     installLabelPath        = CfgQuotedLineList(
                                 CfgString)          # macros supported
+    needWmsToken            = CfgBool
     noClean                 = (CfgBool, False,
             "Don't clean the rMake chroot immediately "
             "after a successful build.")
