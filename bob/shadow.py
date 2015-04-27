@@ -254,6 +254,11 @@ class ShadowBatch(object):
                 needFiles = set(recipeFiles) - newFiles
                 for autoPath in needFiles:
                     source = recipeFiles[autoPath]
+                    if not autoPath:
+                        log.error("bob does not support 'gussed' filenames; "
+                                "please use a full path for source '%s' in "
+                                "package %s", source.getPath(), package.name)
+                        raise RuntimeError("Unsupported source action")
                     if (autoPath in oldFiles
                             and not self.helper.plan.refreshSources
                             and not source.ephemeral):
