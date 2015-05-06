@@ -116,7 +116,8 @@ class WmsClient(object):
     # API
 
     def poll(self, repos, branch):
-        data = self._open_repos(repos, ['poll', self._quote(branch)])
+        data = self._open_repos(repos,
+                ['poll', self._quote(branch) + '?exact=1'])
         return [x.split() for x in data]
 
     def show_url(self, repos):
