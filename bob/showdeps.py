@@ -24,9 +24,11 @@ import sys
 import tempfile
 from bob import config
 from bob import main as bobmain
+from bob import version as bob_version
 from conary.build import groupsetrecipe
 from conary.lib import log as cny_log
 from conary.lib import util
+
 
 log = logging.getLogger('showdeps')
 
@@ -178,7 +180,10 @@ def dedupe(requirers, edges):
 
 def main(args=sys.argv[1:]):
     cny_log.setupLogging(consoleLevel=logging.INFO)
-    parser = optparse.OptionParser(usage='%prog {--graph,--required-hosts,--scm} root')
+    parser = optparse.OptionParser(
+                        usage='%prog {--graph,--required-hosts,--scm} root',
+                        version="%prog " + bob_version.version
+                    )
     parser.add_option('--graph', action='store_true')
     parser.add_option('--required-hosts', action='store_true')
     parser.add_option('--scm', action='store_true')
