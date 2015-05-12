@@ -13,19 +13,21 @@ Bob the Constructinator a.k.a. \fBbob\fR is a command line tool written in pytho
 .B
 \fBProcedure\fR
 
-Create a git repo for source
-Create a conary recipe to build source
-Create a bob-plan for git repo
-Run bob passing the location of the plan file
+    * Create a git repo for source
+    * Create a conary recipe to build source
+    * Create a bob-plan for git repo
+    * Run bob passing the location of the plan file
 
-Bob plan config options
 
+\fBBob-plan Configuration Options\fR
+
+Target Configuration Options
 
 .TP
 targetLabel             
  String representing the label to promote trove build to
 
-# source
+Source Configuration Options
 
 .TP
 macros                  
@@ -35,13 +37,13 @@ override
  Dictionary ?
 .TP
 resolveTroves           
- List of Quoted Line List of Strings representing the full label of troves required in the chroot for the build
+ List of Strings representing the full label of troves required in the chroot for the build
 .TP
 resolveTrovesOnly       
  Boolean defaults True only use troves specified in resolveTroves when resolving dependencies for build
 .TP
 ephemeral               
- Boolean defaults False toggles if source is included in final source trove (means can not recreate without the original scm is available) 
+ Boolean defaults False toggles if source is included in final source trove (means can not recreate without the original scm being available) 
 .TP
 ephemeralSourceDir      
  Path to ephemeral source location as laid down by bob
@@ -58,11 +60,11 @@ refreshSources
 wmsBase                 
  String representation of the url defining the location of the WMS service
 
-# build
+Build Configuration Options
 
 .TP
 installLabelPath        
- Quoted Line List of Strings representing the installLabelPath config option to be passed to rmake (if resolveTroves only is false then build reqs will be resolved from installLabelPath)
+ List of Strings representing the installLabelPath config option to be passed to rmake (if resolveTroves only is false then build reqs will be resolved from installLabelPath)
 .TP
 needWmsToken            
  Boolean toggles the need for WMS token
@@ -85,7 +87,7 @@ defaultBuildReqs
 rpmRequirements         
  List of Dependencies specifying the version of rpm to during chroot construction
 
-# misc
+Misc Configuration Options
 
 .TP
 commitMessage           
@@ -94,7 +96,7 @@ commitMessage
 skipMacros              
  List of strings of macros to not include ['version']
 
-# debugging
+Debug Configuration Options
 
 .TP
 dumpRecipes             
@@ -107,7 +109,7 @@ recipeDir
  String representation of the path to the conary recipe directory
 
 
-Target Section config options
+Target Section Configuration Options
 
 .TP
 scm                     
@@ -140,13 +142,11 @@ sourceTree
 serializeFlavors        
 .TP
 noBuild                 
- Boolean True tells bob to skip building and only commit the source to the conary repo.TP
+ Boolean default False. True toggles bob to skip building and only commit the source to the conary repo
+.TP
 factory                 
  String representing the conary factory used to build the conary recipe
-.PP
-Bob the Constructinator version 4.2 (revision 9097c90ce885)
-Copyright (c) SAS Institute, Inc.
-All rights reserved.
+
 
 .SH EXAMPLES
 
@@ -178,9 +178,7 @@ file issues or bugs https://opensource.sas.com/its
 .SH AUTHORS
 bob was written by SAS http://www.sas.com/
 .SH COPYRIGHT
-Copyright (c) SAS Institute Inc.
 .PP
 Copyright \(co SAS Institute, Inc.
 All rights reserved.
 .PP
-bob 4.2
