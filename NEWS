@@ -1,0 +1,4 @@
+2015-04-11 Brett Smith <bc.smith@sas.com>
+
+* update commands to support --version
+* create manpages

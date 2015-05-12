@@ -1,0 +1,74 @@
+[name]
+bob - bob the constructinator
+
+[description]
+Bob the Constructinator a.k.a. \fBbob\fR is a command line tool written in python to automate building packages from a git repo into a conary package consumable for Conary enabled systems. bob can leverage WMS and git to enable continuous integration builds.
+
+\fBbob\fR uses a bob-plan to build a conary recipe from a scm checkout. bob supports git, WMS, and hg (mercurial). Bob can build a specific tag or version of an scm repo through command line options.
+
+.B
+\fBProcedure\fR
+
+Create a git repo for source
+Create a conary recipe to build source
+Create a bob-plan for git repo
+Run bob passing the location of the plan file
+
+Bob plan config options
+   targetLabel             = String representing the label to promote trove build to
+   # source
+   macros                  = Dictionary of conary macros passed onto the rmake build job
+   override                = Dictionary ?
+   resolveTroves           = List of Quoted Line List of Strings representing the full label of troves required in the chroot for the build
+   resolveTrovesOnly       = Boolean defaults True only use troves specified in resolveTroves when resolving dependencies for build
+   ephemeral               = Boolean defaults False toggles if source is included in final source trove (means can not recreate without the original scm is available) 
+   ephemeralSourceDir      = Path to ephemeral source location as laid down by bob
+   autoLoadRecipes         = List of Strings representing the full location of the autoLoadRecipes required for building packages
+   scm                     = String representation of the scm location
+   refreshSources          = Boolean defaults False toggles using sources from conary repository cache (equivalent of cvc refresh)
+   wmsBase                 = String representation of the url defining the location of the WMS service
+   # build
+   installLabelPath        = Quoted Line List of Strings representing the installLabelPath config option to be passed to rmake (if resolveTroves only is false then build reqs will be resolved from installLabelPath)
+   needWmsToken            = Boolean toggles the need for WMS token
+   noClean                 = Boolean defaults to False toggles clean up of the rMake chroot immediately after a successful build
+   shortenGroupFlavors     = Boolean defaults True
+   target                  = List of Strings representing the target sections to build in run
+   showBuildLogs           = Boolean defaults False toggle verbose build logs
+   defaultBuildReqs        = List of Strings of defaultBuildReqs for build (list of troves to be added to buildRequirements regardless of what is specified in recipe)
+   rpmRequirements         = List of Dependencies specifying the version of rpm to during chroot construction
+   # misc
+   commitMessage           = String conary commit message defaults to 'Automated clone by bob'
+   skipMacros              = List of strings of macros to not include ['version']
+   # debugging
+   dumpRecipes             = Boolean True dumps the contents of the conary recipe to be built
+   depMode                 = Boolean True ???
+   recipeDir               = String representation of the path to the conary recipe directory
+
+Target Section config options
+   scm                     = String represents the location of the git repo
+   after                   = List of Strings used to make sure target is built after a parent target
+   classVar                = Dictionary of Conary recipe Class Variables values to be munged
+   flavor_mask             = String representing the Flavor Mask for the troves
+   flavor_set              = String representing the Flavor Set for the troves
+   flavor                  = String representing the Flavor of the trove
+   macros                  = Dictionary of conary macros passed in to the rmake job
+   version                 = String representing the version of the trove and repo to be mangled by bob in final trove
+   sourceTree              = String path to the directory containing the conary recipe and any files required for the trove
+   serializeFlavors        = 
+   noBuild                 = Boolean True tells bob to skip building and only commit the source to the conary repo  
+   factory                 = String representing the conary factory used to build the conary recipe
+
+
+[seealso]
+bob --help 
+
+.TP
+\fIbob\-jenkins\fP(1)
+.TP
+\fIbob\-deps\fP(1)
+
+[examples]
+
+\fBbob-4.2\fR \fIhttp://path/to/bob-plan/bob.bob\fR --set-tag=test=5.2c8efbf3 --set-version=bob=4.2
+
+
