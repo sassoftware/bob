@@ -20,10 +20,13 @@ PYTHON = /usr/bin/python${PYVER}
 
 DESTDIR=
 VERSION=$(shell grep ^VERSION setup.py |cut -d\' -f2)
+MANPAGES=$(notdir $(filter %.1,$(wildcard docs/manpages/*.1)))
 prefix = /usr
 lib = $(shell uname -m | sed -r '/x86_64|ppc64|s390x|sparc64/{s/.*/lib64/;q};s/.*/lib/')
 libdir = $(prefix)/$(lib)
 bindir = $(prefix)/bin
+datadir = $(prefix)/share
+mandir = $(datadir)/man
 sitepkg = $(libdir)/python$(PYVER)/site-packages
 eggname = bob-$(VERSION)-py$(PYVER).egg
 
@@ -31,7 +34,7 @@ eggname = bob-$(VERSION)-py$(PYVER).egg
 
 all: dist/$(eggname)
 
-install: all
+install: all man
 	mkdir -p $(DESTDIR)$(sitepkg)
 	rm -rf $(DESTDIR)$(sitepkg)/$(eggname)
 	$(PYTHON) -measy_install -m -d $(DESTDIR)$(sitepkg) -s $(DESTDIR)$(bindir) dist/$(eggname)
@@ -39,6 +42,13 @@ install: all
 	for x in $(DESTDIR)$(bindir)/*; do \
 		mv $$x $$x-$(VERSION); \
 		ln -sfn $$(basename $$x)-$(VERSION) $$x; \
+	done
+
+man:
+	mkdir -p $(DESTDIR)$(mandir)/man1
+	for M in $(MANPAGES); do \
+		install -m 0644 docs/manpages/$$M $(DESTDIR)$(mandir)/man1/; \
+		gzip $(DESTDIR)$(mandir)/man1/$$M; \
 	done
 
 clean:

@@ -1,0 +1,37 @@
+[name]
+bob - bob the constructinator
+
+[description]
+Bob the Constructinator a.k.a. \fBbob\fR is a command line tool written in python to automate building packages from a git repo into a conary package consumable for Conary enabled systems. bob can leverage WMS and git to enable continuous integration builds.
+
+\fBbob\fR uses a bob-plan to build a conary recipe from a scm checkout. bob supports git, WMS, and hg (mercurial). Bob can build a specific tag or version of an scm repo through command line options.
+
+.B
+\fBProcedure\fR
+
+Create a git repo for source
+
+Create a conary recipe to build source
+
+Create a bob-plan for git repo
+
+Run bob passing the location of the plan file
+
+For help with bob-plans see
+\fIbob\-plans\fP(1)
+
+
+[examples]
+.TP
+\fBbob-4.2\fR \fIhttp://path/to/bob-plan/bob.bob\fR \-\-set-tag=\fItest=5.2c8efbf3\fR \-\-set\-version\fI=bob=4.2\fR
+
+[seealso]
+
+\fBbob \-\-help\fR
+
+.TP
+\fIbob\-jenkins\fP(1)
+.TP
+\fIbob\-deps\fP(1)
+.TP
+\fIbob\-plans\fP(1)

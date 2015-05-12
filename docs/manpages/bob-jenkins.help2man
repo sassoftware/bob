@@ -1,0 +1,10 @@
+[name]
+bob-jenkins - bob for use on jenkins nodes
+
+[description]
+
+    \fBbob-jenkins\fR is for use on a jenkins node with the proper environment variables set as well as a properly configured /etc/bobrc.
+
+    For use with WMS os environment variable must be set for 'WMS' or else \fI--base-uri\fR option must be used as well as the \fI--repo\fR option must be set
+    
+    Must set one of --checkout or --plan
