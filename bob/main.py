@@ -34,7 +34,7 @@ from bob import flavors
 from bob import recurse
 from bob import shadow
 from bob import util
-from bob import version
+from bob import version as bob_version
 from bob.errors import JobFailedError, TestFailureError
 from bob.macro import substILP, substResolveTroves, substStringList
 from bob.rev_file import RevisionFile
@@ -410,8 +410,8 @@ def _main(plan):
 
 
 def banner():
-    rev = version.revision and ' (revision %s)' % version.revision or ''
-    print 'Bob the Constructinator version %s%s' % (version.version, rev)
+    rev = bob_version.revision and ' (revision %s)' % bob_version.revision or ''
+    print 'Bob the Constructinator version %s%s' % (bob_version.version, rev)
     print 'Copyright (c) SAS Institute, Inc.'
     print 'All rights reserved.'
     print
@@ -426,7 +426,9 @@ def main(args=sys.argv[1:]):
     banner()
 
     parser = optparse.OptionParser(
-            usage='Usage: %prog <plan file or URI> [options]')
+            usage='Usage: %prog <plan file or URI> [options]',
+            version='%prog ' + bob_version.version
+            )
     parser.add_option('--set-tag', action='append',
             help='tree=revision')
     parser.add_option('--set-version', action='append',

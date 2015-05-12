@@ -23,13 +23,14 @@ from conary.lib import util
 
 from bob import config
 from bob import main as bob_main
+from bob import version as bob_version
 from bob.rev_file import RevisionFile
 from bob.scm import wms
 
 
 def main(args=sys.argv[1:]):
     cfg = config.openPlan(None, systemOnly=True)
-    parser = optparse.OptionParser()
+    parser = optparse.OptionParser(version='%prog ' + bob_version.version)
     parser.add_option('--base-uri')
     parser.add_option('--repo')
     parser.add_option('--plan')
