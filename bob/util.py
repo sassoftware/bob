@@ -19,6 +19,8 @@
 Utility functions
 '''
 
+import errno
+import fcntl
 import logging
 import os
 import subprocess
@@ -31,6 +33,8 @@ from rmake.cmdline import helper
 from rmake.cmdline import monitor
 from conary.lib import util
 from conary.lib.digestlib import md5
+from conary.lib.util import statFile
+
 
 log = logging.getLogger('bob.util')
 
@@ -319,3 +323,88 @@ def insertResolveTroves(cfg, commitMap):
     packages = sorted(packages)
     cfg.resolveTroves.insert(0, [(n, str(v), f) for (n, v, f) in packages])
     cfg.resolveTroveTups.insert(0, packages)
+
+
+class LockFile(object):
+    """
+    Protect a code block with an exclusive file lock. Can be used as a context
+    manager, or standalone.
+
+    >>> with LockFile(path):
+    ...     do_stuff()
+    """
+
+    def __init__(self, path, callback=None):
+        self.path = path
+        self.callback = callback
+        self.fobj = None
+
+    def _open(self, wait):
+        flags = fcntl.LOCK_EX
+        if not wait:
+            flags |= fcntl.LOCK_NB
+        fobj = open(self.path, 'w')
+        try:
+            fcntl.lockf(fobj, flags)
+            return fobj
+        except IOError as err:
+            fobj.close()
+            if err.args[0] != errno.EAGAIN:
+                raise
+            assert not wait
+            return None
+        except:
+            fobj.close()
+            raise
+
+    def _acquire_once(self, wait):
+        fobj = self._open(wait)
+        if not fobj:
+            return False
+        if statFile(fobj, True, True) != statFile(self.path, True, True):
+            # The file was unlinked and possibly replaced with a different one,
+            # so this lock is useless.
+            fobj.close()
+            return False
+        self.fobj = fobj
+        return True
+
+    def acquire(self, wait=True):
+        """
+        Try to acquire a lock. Returns True if it succeeded, or False if it did
+        not.
+
+        @param wait: If True, wait until it is possible to acquire the lock
+            before returning. The method will not return False in this mode.
+        """
+        ok = self._acquire_once(False)
+        if ok or not wait:
+            return ok
+        if self.callback:
+            self.callback()
+        while True:
+            if self._acquire_once(True):
+                break
+        return True
+    __enter__ = acquire
+
+    def release(self, unlink=True, touch=False):
+        """
+        Release the lock. Does nothing if no lock was previously acquired.
+
+        @param unlink: If True, unlink the lockfile before releasing it.
+        @param touch: If True, update the mtime on the lockfile before
+            releasing it.
+        """
+        fobj = self.fobj
+        if not fobj:
+            return
+        if touch:
+            fobj.write('\n')
+        if unlink:
+            os.unlink(self.path)
+        self.fobj = None
+        fobj.close()
+
+    def __exit__(self, *args):
+        self.release()

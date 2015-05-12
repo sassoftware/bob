@@ -20,11 +20,13 @@ PYTHON = /usr/bin/python${PYVER}
 
 DESTDIR=
 VERSION=$(shell grep ^VERSION setup.py |cut -d\' -f2)
+MANPAGES=$(notdir $(filter %.1,$(wildcard docs/manpages/*.1)))
 prefix = /usr
 lib = $(shell uname -m | sed -r '/x86_64|ppc64|s390x|sparc64/{s/.*/lib64/;q};s/.*/lib/')
 libdir = $(prefix)/$(lib)
 bindir = $(prefix)/bin
-mandir = $(prefix)/usr/man
+datadir = $(prefix)/share
+mandir = $(datadir)/man
 sitepkg = $(libdir)/python$(PYVER)/site-packages
 eggname = bob-$(VERSION)-py$(PYVER).egg
 

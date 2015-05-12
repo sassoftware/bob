@@ -34,9 +34,7 @@ log = logging.getLogger('showdeps')
 
 
 def analyze_plan(root, pluginMgr, recipeDir, relpath):
-    cfg = config.BobConfig()
-    path = os.path.join(root, relpath)
-    cfg.read(path)
+    cfg = config.openPlan(os.path.join(root, relpath))
     cfg.recipeDir = recipeDir
 
     # Provide each source that this plan would build
@@ -141,9 +139,7 @@ def analyze_groupset(recipeObj):
 def dump_recipes((root, pluginMgr, recipeDir, relpath)):
     try:
         log.info("Dumping recipes for %s", relpath)
-        cfg = config.BobConfig()
-        path = os.path.join(root, relpath)
-        cfg.read(path)
+        cfg = config.openPlan(os.path.join(root, relpath))
         cfg.dumpRecipes = True
         cfg.recipeDir = recipeDir
         bob = bobmain.BobMain(pluginMgr)

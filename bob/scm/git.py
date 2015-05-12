@@ -24,6 +24,7 @@ import os
 import subprocess
 
 from bob import scm
+from bob.util import LockFile
 
 log = logging.getLogger('bob.scm')
 
@@ -56,12 +57,14 @@ class GitRepository(scm.ScmRepository):
         # Create the cache repo if needed.
         if not os.path.isdir(self.repoDir):
             os.makedirs(self.repoDir)
-        if not (os.path.isdir(self.repoDir + '/refs')
-                or os.path.isdir(self.repoDir + '/.git/refs')):
-            subprocess.check_call(['git', 'init', '-q', '--bare'],
-                    cwd=self.repoDir)
-        subprocess.check_call(['git', 'fetch', '-q', '-f',
-            self.uri, '+%s:%s' % (self.branch, self.branch)], cwd=self.repoDir)
+        with LockFile(self.repoDir + '/fetch_lock'):
+            if not (os.path.isdir(self.repoDir + '/refs')
+                    or os.path.isdir(self.repoDir + '/.git/refs')):
+                subprocess.check_call(['git', 'init', '-q', '--bare'],
+                        cwd=self.repoDir)
+            subprocess.check_call(['git', 'fetch', '-q', '-f',
+                self.uri, '+%s:%s' % (self.branch, self.branch)],
+                cwd=self.repoDir)
 
     def checkout(self, workDir, subtree):
         p1 = subprocess.Popen(['git', 'archive', '--format=tar',

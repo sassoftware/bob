@@ -75,6 +75,7 @@ class BobConfig(cfg.SectionedConfigFile):
     # build
     installLabelPath        = CfgQuotedLineList(
                                 CfgString)          # macros supported
+    needWmsToken            = CfgBool
     noClean                 = (CfgBool, False,
             "Don't clean the rMake chroot immediately "
             "after a successful build.")
@@ -173,12 +174,19 @@ class BobConfig(cfg.SectionedConfigFile):
         self.configLine('scm %s hg %s' % (key, value))
 
 
-def openPlan(path, preload=DEFAULT_PATH):
-    plan = BobConfig()
+def openPlan(path, preload=DEFAULT_PATH, systemOnly=False, cls=BobConfig):
+    plan = cls()
     for item in preload:
         if item.startswith('~/') and 'HOME' in os.environ:
             item = os.path.join(os.environ['HOME'], item[2:])
         if os.path.isfile(item):
             plan.read(item)
+    if systemOnly:
+        return plan
+    wmsBase = plan.wmsBase
     plan.read(path)
+    if wmsBase:
+        # Prefer wmsBase from global config over plan config, because it may
+        # supply credentials
+        plan.wmsBase = wmsBase
     return plan

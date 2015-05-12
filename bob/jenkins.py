@@ -21,24 +21,25 @@ import sys
 import tempfile
 from conary.lib import util
 
+from bob import config
 from bob import main as bob_main
+from bob import version as bob_version
 from bob.rev_file import RevisionFile
 from bob.scm import wms
-from bob import version as bob_version
 
 def main(args=sys.argv[1:]):
+    cfg = config.openPlan(None, systemOnly=True)
     parser = optparse.OptionParser(version='%prog ' + bob_version.version)
     parser.add_option('--base-uri')
     parser.add_option('--repo')
     parser.add_option('--plan')
     parser.add_option('--checkout')
     options, args = parser.parse_args(args)
-    if options.base_uri:
-        base = options.base_uri
-    elif 'WMS' in os.environ:
-        base = os.environ['WMS']
-    else:
-        parser.error("--base-uri option or WMS env var must be set")
+    if not cfg.wmsBase:
+        if options.base_uri:
+            cfg.wmsBase = options.base_uri
+        else:
+            parser.error("Please set wmsBase option in /etc/bobrc or ~/.bobrc")
     if not options.repo:
         parser.error("--repo option must be set")
     if not options.plan and not options.checkout:
@@ -53,7 +54,7 @@ def main(args=sys.argv[1:]):
                 break
         else:
             sys.exit("repo %s not in revision.txt" % options.repo)
-    repo = wms.WmsRepository(base=base, path=path)
+    repo = wms.WmsRepository(cfg, path=path)
     repo.revision = tip['id']
     repo.branch = tip['branch']
     repo.revIsExact = True
