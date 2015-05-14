@@ -35,3 +35,14 @@ troff: phony_commands
 		> bob-$$subcommand.1; \
 	done
 
+html:
+	mkdir ./html
+	groff -t -mandoc -Thtml bob.1 > ./html/bob-$(VERSION).html
+	groff -t -mandoc -Thtml bob-plans.1 > ./html/bob-plans-$(VERSION).html
+	for subcommand in $(SUBCOMMANDS); do \
+		groff -t -mandoc -Thtml bob-$$subcommand.1 > ./html/bob-$$subcommand-$(VERSION).html; \
+	done
+
+rm_html:
+	rm -r ./html
+
