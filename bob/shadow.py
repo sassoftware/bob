@@ -254,6 +254,10 @@ class ShadowBatch(object):
                 needFiles = set(recipeFiles) - newFiles
                 for autoPath in needFiles:
                     source = recipeFiles[autoPath]
+                    if getattr(source, 'contents', None
+                            ) and not source.sourcename:
+                        # Ignore trove scripts that have inline contents
+                        continue
                     if not autoPath:
                         log.error("bob does not support 'gussed' filenames; "
                                 "please use a full path for source '%s' in "
